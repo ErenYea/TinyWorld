@@ -7,9 +7,10 @@ import ReactFlow, {
   Edge,
   useNodesState,
   useEdgesState,
-  SelectionMode,
   Handle,
-  Position,
+  Position as FlowPosition,
+  ConnectionMode,
+  SelectionMode,
 } from 'reactflow';
 import { ErrorBoundary } from './ErrorBoundary';
 import 'reactflow/dist/style.css';
@@ -28,30 +29,53 @@ interface NodeGraphProps {
 }
 
 // Custom node component definition
-const CustomNode = ({ data }: { data: { label: string; task?: string; status: string; description?: string } }) => (
+interface NodeData {
+  label: string;
+  task?: string;
+  status: string;
+  description?: string;
+  interactionCount?: number;
+  lastInteraction?: string;
+}
+
+const CustomNode = ({ data }: { data: NodeData }) => (
   <div 
     className="text-center group relative cursor-pointer"
     title={data.description}
   >
-    <Handle type="target" position={Position.Top} id="target" className="!bg-purple-400" />
-    <div className="font-semibold">{data.label}</div>
-    {data.task && (
-      <div className="text-sm text-gray-400 mt-1 max-w-[200px] truncate">
-        {data.task}
+    <Handle type="target" position={FlowPosition.Top} id="target" className="!bg-purple-400" />
+    <div className="node-enter">
+      <div className="font-semibold">{data.label}</div>
+      {data.task && (
+        <div className="text-sm text-gray-400 mt-1 max-w-[200px] truncate">
+          {data.task}
+        </div>
+      )}
+      <div className={`text-xs mt-1 ${
+        data.status === 'running' ? 'text-green-400' :
+        data.status === 'paused' ? 'text-yellow-400' :
+        'text-gray-400'
+      }`}>
+        {data.status.toUpperCase()}
       </div>
-    )}
-    <div className={`text-xs mt-1 ${
-      data.status === 'running' ? 'text-green-400' :
-      data.status === 'paused' ? 'text-yellow-400' :
-      'text-gray-400'
-    }`}>
-      {data.status.toUpperCase()}
+      <div className="mt-2">
+        {data.interactionCount !== undefined && (
+          <div className="text-xs text-purple-400">
+            Interactions: {data.interactionCount}
+          </div>
+        )}
+        {data.lastInteraction && (
+          <div className="text-xs text-gray-400">
+            Last: {data.lastInteraction}
+          </div>
+        )}
+      </div>
+      <div className="absolute hidden group-hover:block bg-gray-900/95 text-white p-3 rounded-md shadow-lg z-50 w-64 -translate-x-1/2 left-1/2 mt-2">
+        <p className="text-sm font-medium mb-2">{data.description}</p>
+        {data.task && <p className="text-xs text-gray-300">Current Task: {data.task}</p>}
+      </div>
     </div>
-    <div className="absolute hidden group-hover:block bg-gray-900/95 text-white p-3 rounded-md shadow-lg z-50 w-64 -translate-x-1/2 left-1/2 mt-2">
-      <p className="text-sm font-medium mb-2">{data.description}</p>
-      {data.task && <p className="text-xs text-gray-300">Current Task: {data.task}</p>}
-    </div>
-    <Handle type="source" position={Position.Bottom} id="source" className="!bg-purple-400" />
+    <Handle type="source" position={FlowPosition.Bottom} id="source" className="!bg-purple-400" />
   </div>
 );
 
@@ -60,9 +84,9 @@ type Position = { x: number; y: number };
 type NodePositions = Map<string, Position>;
 
 // Initialize node types at the top level
-const nodeTypes = {
+const nodeTypes: Record<string, React.FC<any>> = {
   default: CustomNode,
-} as const;
+};
 
 // Initialize positions Map
 const initialPositions: NodePositions = new Map();
@@ -185,7 +209,7 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
         nodeTypes={nodeTypes}
         fitView
         draggable={true}
-        selectionMode={SelectionMode.Single}
+        selectionMode={SelectionMode.None}
         selectNodesOnDrag={false}
         className="nodrag"
         minZoom={0.5}
@@ -203,11 +227,13 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
   );
 }
 
-// Export wrapped component with ErrorBoundary
+// Export the component directly with ErrorBoundary
 export function NodeGraph(props: NodeGraphProps) {
   return (
     <ErrorBoundary>
-      <NodeGraphContent {...props} />
+      <div className="h-full w-full">
+        <NodeGraphContent {...props} />
+      </div>
     </ErrorBoundary>
   );
 }

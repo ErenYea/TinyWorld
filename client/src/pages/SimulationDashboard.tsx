@@ -5,6 +5,7 @@ import { ControlPanel } from "../components/ControlPanel";
 import { LogViewer } from "../components/LogViewer";
 import { NodeGraph } from "../components/NodeGraph";
 import { MatrixAnimation } from "../components/MatrixAnimation";
+import { MetricsPanel } from "../components/MetricsPanel";
 import { useSimulation } from "../hooks/useSimulation";
 
 export default function SimulationDashboard() {
@@ -12,6 +13,7 @@ export default function SimulationDashboard() {
     agents, 
     simulationStatus,
     logs,
+    metrics,
     startSimulation,
     pauseSimulation,
     resetSimulation,
@@ -42,6 +44,8 @@ export default function SimulationDashboard() {
                 onReset={resetSimulation}
               />
             </Card>
+
+            <MetricsPanel metrics={metrics} />
           </div>
 
           {/* Center Column */}
