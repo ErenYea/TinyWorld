@@ -56,6 +56,8 @@ export function useSimulation() {
           return;
         }
 
+        console.log('[WebSocket] Received message:', data);
+        
         switch (data.type) {
           case 'agents':
             setAgents(Array.isArray(data.payload) ? data.payload : []);
@@ -71,14 +73,24 @@ export function useSimulation() {
             });
             break;
           case 'log':
+            console.log('[WebSocket] Processing log:', data.payload);
             setLogs(prev => {
-              const newLogs = [...prev, {
-                id: data.payload.id || crypto.randomUUID(),
+              // Ensure data.payload has all required fields
+              if (!data.payload?.id || !data.payload?.type || !data.payload?.message) {
+                console.error('[WebSocket] Invalid log format:', data.payload);
+                return prev;
+              }
+
+              const newLog = {
+                id: data.payload.id,
                 timestamp: data.payload.timestamp || new Date().toISOString(),
-                type: data.payload.type,
+                type: data.payload.type as 'info' | 'warning' | 'error' | 'interaction' | 'behavior',
                 message: data.payload.message
-              }];
-              return newLogs.slice(-100);
+              };
+
+              console.log('[WebSocket] Adding new log:', newLog);
+              const newLogs = [...prev, newLog];
+              return newLogs.slice(-100); // Keep last 100 logs
             });
             break;
           case 'status':

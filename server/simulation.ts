@@ -172,12 +172,25 @@ export class SimulationManager {
   }
 
   private broadcastLog(log: Log) {
+    console.log(`[SimulationManager] Broadcasting log: ${JSON.stringify(log)}`);
+    
+    // Format timestamp if not already formatted
+    const formattedLog = {
+      ...log,
+      timestamp: log.timestamp ? new Date(log.timestamp).toISOString() : new Date().toISOString()
+    };
+
     this.wss.clients.forEach((client: WebSocket) => {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({
-          type: 'log',
-          payload: log
-        }));
+        try {
+          client.send(JSON.stringify({
+            type: 'log',
+            payload: formattedLog
+          }));
+          console.log(`[SimulationManager] Log broadcast successful`);
+        } catch (error) {
+          console.error('[SimulationManager] Failed to broadcast log:', error);
+        }
       }
     });
   }

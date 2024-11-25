@@ -30,7 +30,26 @@ export function registerRoutes(app: Express, server: Server) {
   });
 
   // Initialize simulation manager after WSS is ready
+  // Initialize simulation manager and create function for broadcasting logs
   const simulationManager = new SimulationManager(wss);
+
+  async function broadcastSystemLog(type: 'info' | 'warning' | 'error', message: string) {
+    const log = await db.insert(simulationLogs)
+      .values({
+        type,
+        message,
+      })
+      .returning();
+    
+    console.log(`[WebSocket] Broadcasting system log: ${message}`);
+    broadcastToAll(wss, {
+      type: 'log',
+      payload: {
+        ...log[0],
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
 
   // Log when the server is ready
   console.log('[WebSocket] Server initialized successfully');
@@ -92,16 +111,23 @@ export function registerRoutes(app: Express, server: Server) {
       
       switch (data.command) {
         case 'deploy':
-          const agent = await db.insert(agents).values({
-            name: data.payload.name,
-            description: data.payload.description,
-            goals: data.payload.goals,
-          }).returning();
-          
-          broadcastToAll(wss, {
-            type: 'agents',
-            payload: await getAgents()
-          });
+          try {
+            const agent = await db.insert(agents).values({
+              name: data.payload.name,
+              description: data.payload.description,
+              goals: data.payload.goals,
+            }).returning();
+            
+            await broadcastSystemLog('info', `Agent "${data.payload.name}" deployed successfully`);
+            
+            broadcastToAll(wss, {
+              type: 'agents',
+              payload: await getAgents()
+            });
+          } catch (error) {
+            console.error('[WebSocket] Failed to deploy agent:', error);
+            await broadcastSystemLog('error', `Failed to deploy agent: ${error.message}`);
+          }
           break;
 
         case 'start':
