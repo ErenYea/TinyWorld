@@ -24,11 +24,14 @@ interface NodeGraphProps {
 }
 
 // Custom node component definition
-const CustomNode = ({ data }: { data: { label: string; task?: string; status: string } }) => (
-  <div className="text-center">
+const CustomNode = ({ data }: { data: { label: string; task?: string; status: string; description?: string } }) => (
+  <div 
+    className="text-center group relative cursor-pointer"
+    title={data.description}
+  >
     <div className="font-semibold">{data.label}</div>
     {data.task && (
-      <div className="text-sm text-gray-400 mt-1">
+      <div className="text-sm text-gray-400 mt-1 max-w-[200px] truncate">
         {data.task}
       </div>
     )}
@@ -38,6 +41,10 @@ const CustomNode = ({ data }: { data: { label: string; task?: string; status: st
       'text-gray-400'
     }`}>
       {data.status.toUpperCase()}
+    </div>
+    <div className="absolute hidden group-hover:block bg-gray-900 text-white p-2 rounded-md shadow-lg z-50 w-64 -translate-x-1/2 left-1/2 mt-2">
+      <p className="text-sm">{data.description}</p>
+      {data.task && <p className="text-xs mt-1 text-gray-400">Current Task: {data.task}</p>}
     </div>
   </div>
 );
@@ -58,17 +65,31 @@ const getNodeStyle = (status: string) => {
   const baseStyle = {
     padding: 10,
     borderRadius: 5,
-    border: '1px solid',
+    border: '2px solid',
     background: 'rgba(17, 17, 17, 0.9)',
+    boxShadow: '0 0 10px rgba(0, 0, 0, 0.5)',
+    transition: 'all 0.3s ease',
   };
 
   switch (status) {
     case 'running':
-      return { ...baseStyle, borderColor: 'rgba(34, 197, 94, 0.5)' };
+      return { 
+        ...baseStyle, 
+        borderColor: 'rgba(34, 197, 94, 0.7)',
+        boxShadow: '0 0 15px rgba(34, 197, 94, 0.3)'
+      };
     case 'paused':
-      return { ...baseStyle, borderColor: 'rgba(234, 179, 8, 0.5)' };
+      return { 
+        ...baseStyle, 
+        borderColor: 'rgba(234, 179, 8, 0.7)',
+        boxShadow: '0 0 15px rgba(234, 179, 8, 0.3)'
+      };
     default:
-      return { ...baseStyle, borderColor: 'rgba(107, 114, 128, 0.5)' };
+      return { 
+        ...baseStyle, 
+        borderColor: 'rgba(107, 114, 128, 0.7)',
+        boxShadow: '0 0 10px rgba(107, 114, 128, 0.3)'
+      };
   }
 };
 
@@ -119,7 +140,23 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
         source: agent.id,
         target: targetId,
         animated: agent.status === 'running',
-        style: { stroke: '#a855f7', strokeWidth: 2, opacity: 0.5 },
+        style: { 
+          stroke: '#a855f7', 
+          strokeWidth: 2, 
+          opacity: 0.5,
+          strokeDasharray: '5 5',
+        },
+        label: 'Interacting',
+        labelStyle: { 
+          fill: '#a855f7', 
+          fontSize: 10,
+          fontFamily: 'monospace'
+        },
+        labelBgStyle: { 
+          fill: 'rgba(17, 17, 17, 0.9)',
+          fillOpacity: 0.7,
+          rx: 4,
+        },
       }))
     );
 
