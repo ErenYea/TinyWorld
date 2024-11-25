@@ -4,7 +4,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 interface Log {
   id: string;
   timestamp: string;
-  type: 'info' | 'warning' | 'error';
+  type: 'info' | 'warning' | 'error' | 'interaction' | 'behavior';
   message: string;
 }
 
@@ -33,6 +33,8 @@ export function LogViewer({ logs }: LogViewerProps) {
               className={`
                 ${log.type === 'error' ? 'text-red-400' :
                   log.type === 'warning' ? 'text-yellow-400' :
+                  log.type === 'interaction' ? 'text-blue-400' :
+                  log.type === 'behavior' ? 'text-purple-400' :
                   'text-green-400'}
               `}
             >
