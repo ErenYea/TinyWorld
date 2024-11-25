@@ -7,6 +7,7 @@ import ReactFlow, {
   Edge,
   useNodesState,
   useEdgesState,
+  SelectionMode,
 } from 'reactflow';
 import { ErrorBoundary } from './ErrorBoundary';
 import 'reactflow/dist/style.css';
@@ -17,6 +18,7 @@ interface Agent {
   status: string;
   currentTask?: string;
   connections: string[];
+  description?: string;
 }
 
 interface NodeGraphProps {
@@ -76,7 +78,8 @@ const getNodeStyle = (status: string) => {
       return { 
         ...baseStyle, 
         borderColor: 'rgba(34, 197, 94, 0.7)',
-        boxShadow: '0 0 15px rgba(34, 197, 94, 0.3)'
+        boxShadow: '0 0 15px rgba(34, 197, 94, 0.3)',
+        animation: 'pulse 2s infinite ease-in-out'
       };
     case 'paused':
       return { 
@@ -174,6 +177,13 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         fitView
+        draggable={true}
+        selectionMode={SelectionMode.Single}
+        selectNodesOnDrag={false}
+        className="nodrag"
+        minZoom={0.5}
+        maxZoom={1.5}
+        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
       >
         <Background
           gap={12}
