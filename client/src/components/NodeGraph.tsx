@@ -8,6 +8,8 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   SelectionMode,
+  Handle,
+  Position,
 } from 'reactflow';
 import { ErrorBoundary } from './ErrorBoundary';
 import 'reactflow/dist/style.css';
@@ -31,6 +33,7 @@ const CustomNode = ({ data }: { data: { label: string; task?: string; status: st
     className="text-center group relative cursor-pointer"
     title={data.description}
   >
+    <Handle type="target" position={Position.Top} id="target" className="!bg-purple-400" />
     <div className="font-semibold">{data.label}</div>
     {data.task && (
       <div className="text-sm text-gray-400 mt-1 max-w-[200px] truncate">
@@ -48,6 +51,7 @@ const CustomNode = ({ data }: { data: { label: string; task?: string; status: st
       <p className="text-sm font-medium mb-2">{data.description}</p>
       {data.task && <p className="text-xs text-gray-300">Current Task: {data.task}</p>}
     </div>
+    <Handle type="source" position={Position.Bottom} id="source" className="!bg-purple-400" />
   </div>
 );
 
@@ -143,7 +147,10 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
         id: `${agent.id}-${targetId}`,
         source: agent.id,
         target: targetId,
+        sourceHandle: 'source',
+        targetHandle: 'target',
         animated: agent.status === 'running',
+        type: 'smoothstep',
         style: { 
           stroke: '#a855f7', 
           strokeWidth: 2, 
