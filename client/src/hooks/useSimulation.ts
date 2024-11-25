@@ -21,7 +21,7 @@ export function useSimulation() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [simulationStatus, setSimulationStatus] = useState<'idle' | 'running' | 'paused'>('idle');
   
-  const { socket, connected } = useWebSocket(`ws://${window.location.hostname}`);
+  const { socket, status: wsStatus } = useWebSocket(`ws://${window.location.hostname}`);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export function useSimulation() {
   }, [socket]);
 
   const startSimulation = () => {
-    if (!connected) {
+    if (!wsStatus.connected) {
       toast({
         title: "Connection Error",
         description: "Cannot start simulation: WebSocket not connected",
@@ -84,5 +84,6 @@ export function useSimulation() {
     pauseSimulation,
     resetSimulation,
     deployAgent,
+    wsStatus,
   };
 }

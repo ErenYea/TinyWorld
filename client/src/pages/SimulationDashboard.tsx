@@ -15,7 +15,8 @@ export default function SimulationDashboard() {
     startSimulation,
     pauseSimulation,
     resetSimulation,
-    deployAgent
+    deployAgent,
+    wsStatus
   } = useSimulation();
 
   return (
@@ -35,6 +36,7 @@ export default function SimulationDashboard() {
             <Card className="p-4 bg-gray-900/50 border-purple-500/30">
               <ControlPanel 
                 status={simulationStatus}
+                wsStatus={wsStatus}
                 onStart={startSimulation}
                 onPause={pauseSimulation}
                 onReset={resetSimulation}

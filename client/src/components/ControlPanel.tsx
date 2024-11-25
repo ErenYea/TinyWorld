@@ -1,9 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { PlayCircle, PauseCircle, RotateCcw } from "lucide-react";
+import { PlayCircle, PauseCircle, RotateCcw, Wifi, WifiOff } from "lucide-react";
+import type { WebSocketStatus } from "../hooks/useWebSocket";
 
 interface ControlPanelProps {
   status: 'idle' | 'running' | 'paused';
+  wsStatus: WebSocketStatus;
   onStart: () => void;
   onPause: () => void;
   onReset: () => void;
@@ -11,6 +13,7 @@ interface ControlPanelProps {
 
 export function ControlPanel({
   status,
+  wsStatus,
   onStart,
   onPause,
   onReset
@@ -22,15 +25,33 @@ export function ControlPanel({
       </h2>
       
       <div className="space-y-4">
-        <div className="flex items-center justify-between bg-gray-800 p-3 rounded-md">
-          <span>Status:</span>
-          <span className={`px-2 py-1 rounded-md ${
-            status === 'running' ? 'bg-green-500/20 text-green-400' :
-            status === 'paused' ? 'bg-yellow-500/20 text-yellow-400' :
-            'bg-gray-500/20 text-gray-400'
-          }`}>
-            {status.toUpperCase()}
-          </span>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between bg-gray-800 p-3 rounded-md">
+            <span>Connection:</span>
+            <div className="flex items-center gap-2">
+              {wsStatus.connected ? (
+                <Wifi className="w-4 h-4 text-green-400" />
+              ) : (
+                <WifiOff className="w-4 h-4 text-red-400" />
+              )}
+              <span className={`px-2 py-1 rounded-md ${
+                wsStatus.connected ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+              }`}>
+                {wsStatus.connected ? 'CONNECTED' : 'DISCONNECTED'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between bg-gray-800 p-3 rounded-md">
+            <span>Status:</span>
+            <span className={`px-2 py-1 rounded-md ${
+              status === 'running' ? 'bg-green-500/20 text-green-400' :
+              status === 'paused' ? 'bg-yellow-500/20 text-yellow-400' :
+              'bg-gray-500/20 text-gray-400'
+            }`}>
+              {status.toUpperCase()}
+            </span>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
