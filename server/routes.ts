@@ -4,6 +4,7 @@ import { db } from "../db";
 import { agents, simulationLogs } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { WebSocketServer, WebSocket } from "ws";
+import { SimulationManager } from "./simulation";
 
 // Extend WebSocket type to include our custom property
 interface CustomWebSocket extends WebSocket {
@@ -11,37 +12,66 @@ interface CustomWebSocket extends WebSocket {
 }
 
 export function registerRoutes(app: Express, server: Server) {
+  // Initialize WebSocket server with more detailed logging
   const wss = new WebSocketServer({ 
     server,
     path: '/ws',
-    verifyClient: (info, callback) => {
-      const origin = info.origin || 'unknown';
-      console.log(`WebSocket connection attempt from origin: ${origin}`);
-      callback(true, 200, 'Connection authorized');
-    }
+    perMessageDeflate: false,
+    clientTracking: true,
   });
-  
-  wss.on('connection', (ws: CustomWebSocket, req) => {
+
+  // Log WebSocket server events
+  wss.on('listening', () => {
+    console.log('[WebSocket] Server is listening and ready for connections');
+  });
+
+  wss.on('error', (error) => {
+    console.error('[WebSocket] Server error:', error);
+  });
+
+  // Initialize simulation manager after WSS is ready
+  const simulationManager = new SimulationManager(wss);
+
+  // Log when the server is ready
+  console.log('[WebSocket] Server initialized successfully');
+
+  wss.on('connection', (wsRaw: WebSocket, req) => {
+    const ws = wsRaw as CustomWebSocket;
     const clientIp = req.socket.remoteAddress;
     const clientId = Math.random().toString(36).substr(2, 9);
+    
+    // Initialize connection state
+    ws.isAlive = true;
     console.log(`WebSocket client connected - ID: ${clientId}, IP: ${clientIp}`);
     
     // Setup heartbeat
-    ws.isAlive = true;
     ws.on('pong', () => {
       ws.isAlive = true;
+      console.log(`Heartbeat received from client ${clientId}`);
     });
 
     // Error handling
     ws.on('error', (error) => {
       console.error(`WebSocket error for client ${clientId}:`, error);
+      ws.isAlive = false;
+      
+      // Only try to send error message if the connection is still open
+      if (ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({
+            type: 'error',
+            payload: 'An error occurred in the connection'
+          }));
+        } catch (sendError) {
+          console.error('Failed to send error message to client:', sendError);
+        }
+      }
+      
+      // Force close the connection on error
       try {
-        ws.send(JSON.stringify({
-          type: 'error',
-          payload: 'An error occurred in the connection'
-        }));
-      } catch (sendError) {
-        console.error('Failed to send error message to client:', sendError);
+        ws.terminate();
+      } catch (closeError) {
+        console.error('Error while terminating connection:', closeError);
       }
     });
 
@@ -108,8 +138,10 @@ export function registerRoutes(app: Express, server: Server) {
       }
     });
 
-    ws.on('close', () => {
-      console.log('Client disconnected');
+    ws.on('close', (code: number, reason: string) => {
+      ws.isAlive = false;
+      clearInterval(pingInterval);
+      console.log(`Client ${clientId} disconnected - Code: ${code}, Reason: ${reason || 'No reason provided'}`);
     });
 
     // Send initial state
@@ -130,9 +162,14 @@ async function sendInitialState(ws: CustomWebSocket) {
 }
 
 function broadcastToAll(wss: WebSocketServer, data: any) {
-  wss.clients.forEach((client: CustomWebSocket) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(data));
+  wss.clients.forEach((client) => {
+    const customClient = client as CustomWebSocket;
+    if (customClient.readyState === WebSocket.OPEN) {
+      try {
+        customClient.send(JSON.stringify(data));
+      } catch (error) {
+        console.error('Failed to broadcast to client:', error);
+      }
     }
   });
 }

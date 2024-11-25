@@ -29,10 +29,17 @@ export function useWebSocket(url: string) {
   };
 
   useEffect(() => {
-    const connect = () => {
+    const connect = async () => {
       try {
+        // Wait a short delay before attempting connection to ensure server is ready
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(`${protocol}//${window.location.hostname}:5000/ws`);
+        const port = window.location.port || '5000';
+        const wsUrl = `${protocol}//${window.location.hostname}:${port}/ws`;
+        console.log('[WebSocket] Attempting connection to:', wsUrl);
+        
+        const ws = new WebSocket(wsUrl);
         socket.current = ws;
 
         // Setup heartbeat ping
