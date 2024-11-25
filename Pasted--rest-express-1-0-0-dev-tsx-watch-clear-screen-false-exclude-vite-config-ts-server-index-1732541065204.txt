@@ -1,0 +1,99 @@
+
+> rest-express@1.0.0 dev
+> tsx watch --clear-screen=false --exclude vite.config.ts.* server/index.ts
+
+01:04:14 PM [express] serving on port 5000
+
+ ERROR(TypeScript)  'ctx' is possibly 'null'.
+ FILE  /home/runner/TinyWorldAI-Simulator/client/src/components/MatrixAnimation.tsx:30:7
+
+    28 |
+    29 |     function draw() {
+  > 30 |       ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+       |       ^^^
+    31 |       ctx.fillRect(0, 0, canvas.width, canvas.height);
+    32 |
+    33 |       ctx.fillStyle = '#a855f7';
+
+ ERROR(TypeScript)  'ctx' is possibly 'null'.
+ FILE  /home/runner/TinyWorldAI-Simulator/client/src/components/MatrixAnimation.tsx:31:7
+
+    29 |     function draw() {
+    30 |       ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+  > 31 |       ctx.fillRect(0, 0, canvas.width, canvas.height);
+       |       ^^^
+    32 |
+    33 |       ctx.fillStyle = '#a855f7';
+    34 |       ctx.font = fontSize + 'px monospace';
+
+ ERROR(TypeScript)  'canvas' is possibly 'null'.
+ FILE  /home/runner/TinyWorldAI-Simulator/client/src/components/MatrixAnimation.tsx:31:26
+
+    29 |     function draw() {
+    30 |       ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+  > 31 |       ctx.fillRect(0, 0, canvas.width, canvas.height);
+       |                          ^^^^^^
+    32 |
+    33 |       ctx.fillStyle = '#a855f7';
+    34 |       ctx.font = fontSize + 'px monospace';
+
+ ERROR(TypeScript)  'canvas' is possibly 'null'.
+ FILE  /home/runner/TinyWorldAI-Simulator/client/src/components/MatrixAnimation.tsx:31:40
+
+    29 |     function draw() {
+    30 |       ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+  > 31 |       ctx.fillRect(0, 0, canvas.width, canvas.height);
+       |                                        ^^^^^^
+    32 |
+    33 |       ctx.fillStyle = '#a855f7';
+    34 |       ctx.font = fontSize + 'px monospace';
+
+ ERROR(TypeScript)  'ctx' is possibly 'null'.
+ FILE  /home/runner/TinyWorldAI-Simulator/client/src/components/MatrixAnimation.tsx:33:7
+
+    31 |       ctx.fillRect(0, 0, canvas.width, canvas.height);
+    32 |
+  > 33 |       ctx.fillStyle = '#a855f7';
+       |       ^^^
+    34 |       ctx.font = fontSize + 'px monospace';
+    35 |
+    36 |       for (let i = 0; i < drops.length; i++) {
+
+ ERROR(TypeScript)  'ctx' is possibly 'null'.
+ FILE  /home/runner/TinyWorldAI-Simulator/client/src/components/MatrixAnimation.tsx:34:7
+
+    32 |
+    33 |       ctx.fillStyle = '#a855f7';
+  > 34 |       ctx.font = fontSize + 'px monospace';
+       |       ^^^
+    35 |
+    36 |       for (let i = 0; i < drops.length; i++) {
+    37 |         const text = chars[Math.floor(Math.random() * chars.length)];
+
+ ERROR(TypeScript)  'ctx' is possibly 'null'.
+ FILE  /home/runner/TinyWorldAI-Simulator/client/src/components/MatrixAnimation.tsx:38:9
+
+    36 |       for (let i = 0; i < drops.length; i++) {
+    37 |         const text = chars[Math.floor(Math.random() * chars.length)];
+  > 38 |         ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+       |         ^^^
+    39 |
+    40 |         if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+    41 |           drops[i] = 0;
+
+ ERROR(TypeScript)  'canvas' is possibly 'null'.
+ FILE  /home/runner/TinyWorldAI-Simulator/client/src/components/MatrixAnimation.tsx:40:35
+
+    38 |         ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+    39 |
+  > 40 |         if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+       |                                   ^^^^^^
+    41 |           drops[i] = 0;
+    42 |         }
+    43 |
+
+[TypeScript] Found 8 errors. Watching for file changes.
+Client connected
+Client disconnected
+Client connected
+Client disconnected

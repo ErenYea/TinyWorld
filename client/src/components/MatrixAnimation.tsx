@@ -14,24 +14,33 @@ export function MatrixAnimation({ className = '' }: MatrixAnimationProps) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
+    const resizeCanvas = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+      return Math.ceil(canvas.width / 14); // 14 is fontSize
+    };
 
     const chars = "01";
     const fontSize = 14;
-    const columns = canvas.width / fontSize;
-    const drops: number[] = [];
+    let columns = resizeCanvas();
+    const drops: number[] = Array(columns).fill(1);
 
-    for (let i = 0; i < columns; i++) {
-      drops[i] = 1;
-    }
+    const handleResize = () => {
+      columns = resizeCanvas();
+      drops.length = columns;
+      drops.fill(1);
+    };
+
+    window.addEventListener('resize', handleResize);
 
     function draw() {
+      if (!ctx || !canvas) return;
+      
       ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       ctx.fillStyle = '#a855f7';
-      ctx.font = fontSize + 'px monospace';
+      ctx.font = `${fontSize}px monospace`;
 
       for (let i = 0; i < drops.length; i++) {
         const text = chars[Math.floor(Math.random() * chars.length)];
@@ -46,7 +55,11 @@ export function MatrixAnimation({ className = '' }: MatrixAnimationProps) {
     }
 
     const interval = setInterval(draw, 33);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   return (

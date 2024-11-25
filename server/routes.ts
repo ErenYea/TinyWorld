@@ -1,13 +1,20 @@
 import type { Express } from "express";
+import { Server } from "http";
 import { db } from "../db";
 import { agents, simulationLogs } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { WebSocketServer, WebSocket } from "ws";
 
-export function registerRoutes(app: Express) {
-  const wss = new WebSocketServer({ port: 8000 });
+export function registerRoutes(app: Express, server: Server) {
+  const wss = new WebSocketServer({ 
+    server,
+    path: '/ws'
+  });
   
   wss.on('connection', (ws: WebSocket) => {
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+    });
     console.log('Client connected');
 
     ws.on('message', async (message) => {
