@@ -42,9 +42,9 @@ const CustomNode = ({ data }: { data: { label: string; task?: string; status: st
     }`}>
       {data.status.toUpperCase()}
     </div>
-    <div className="absolute hidden group-hover:block bg-gray-900 text-white p-2 rounded-md shadow-lg z-50 w-64 -translate-x-1/2 left-1/2 mt-2">
-      <p className="text-sm">{data.description}</p>
-      {data.task && <p className="text-xs mt-1 text-gray-400">Current Task: {data.task}</p>}
+    <div className="absolute hidden group-hover:block bg-gray-900/95 text-white p-3 rounded-md shadow-lg z-50 w-64 -translate-x-1/2 left-1/2 mt-2">
+      <p className="text-sm font-medium mb-2">{data.description}</p>
+      {data.task && <p className="text-xs text-gray-300">Current Task: {data.task}</p>}
     </div>
   </div>
 );
@@ -129,6 +129,7 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
         label: agent.name,
         task: agent.currentTask,
         status: agent.status,
+        description: agent.description || 'No description available',
       },
       style: getNodeStyle(agent.status),
     }));
