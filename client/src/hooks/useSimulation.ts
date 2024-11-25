@@ -21,7 +21,7 @@ export function useSimulation() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [simulationStatus, setSimulationStatus] = useState<'idle' | 'running' | 'paused'>('idle');
   
-  const { socket, connected } = useWebSocket(`ws://${window.location.host}`);
+  const { socket, connected } = useWebSocket(`ws://${window.location.hostname}`);
   const { toast } = useToast();
 
   useEffect(() => {

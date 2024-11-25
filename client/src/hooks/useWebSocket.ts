@@ -11,7 +11,7 @@ export function useWebSocket(url: string) {
   useEffect(() => {
     const connect = () => {
       try {
-        const ws = new WebSocket(`${url}/ws`);
+        const ws = new WebSocket(`ws://${window.location.hostname}:5000/ws`);
         socket.current = ws;
 
         ws.onopen = () => {

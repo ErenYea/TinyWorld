@@ -8,14 +8,25 @@ import { WebSocketServer, WebSocket } from "ws";
 export function registerRoutes(app: Express, server: Server) {
   const wss = new WebSocketServer({ 
     server,
-    path: '/ws'
+    path: '/ws',
+    verifyClient: (info, callback) => {
+      // Allow all origins for WebSocket connections
+      const origin = info.origin;
+      callback(true);
+    }
   });
   
-  wss.on('connection', (ws: WebSocket) => {
+  wss.on('connection', (ws: WebSocket, req) => {
+    const clientIp = req.socket.remoteAddress;
+    console.log(`WebSocket client connected from ${clientIp}`);
+    
     ws.on('error', (error) => {
       console.error('WebSocket error:', error);
     });
-    console.log('Client connected');
+
+    ws.on('ping', () => {
+      ws.pong();
+    });
 
     ws.on('message', async (message) => {
       const data = JSON.parse(message.toString());
