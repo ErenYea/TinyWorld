@@ -31,7 +31,7 @@ interface WebSocketMessage {
 }
 
 export function useSimulation() {
-  const [agents, setAgents] = useState<Agent[]>(() => []);
+  const [agents, setAgents] = useState<Agent[] | null>(null);
   const [logs, setLogs] = useState<Log[]>([]);
   const [metrics, setMetrics] = useState<SimulationMetrics>({
     totalInteractions: 0,
@@ -60,7 +60,7 @@ export function useSimulation() {
         
         switch (data.type) {
           case 'agents':
-            setAgents(Array.isArray(data.payload) ? data.payload : []);
+            setAgents(Array.isArray(data.payload) ? data.payload : null);
             break;
           case 'agentState':
             setAgents(prev => {

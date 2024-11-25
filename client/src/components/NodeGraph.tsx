@@ -20,7 +20,7 @@ interface Agent {
 }
 
 interface NodeGraphProps {
-  agents?: Agent[];
+  agents: Agent[] | null | undefined;
 }
 
 // Custom node component definition
@@ -42,11 +42,17 @@ const CustomNode = ({ data }: { data: { label: string; task?: string; status: st
   </div>
 );
 
-// Initialize positions Map and nodeTypes outside component
-const initialPositions = new Map<string, { x: number; y: number }>();
+// Define types at the top level
+type Position = { x: number; y: number };
+type NodePositions = Map<string, Position>;
+
+// Initialize node types at the top level
 const nodeTypes = {
   default: CustomNode,
-};
+} as const;
+
+// Initialize positions Map
+const initialPositions: NodePositions = new Map();
 
 const getNodeStyle = (status: string) => {
   const baseStyle = {
@@ -66,7 +72,10 @@ const getNodeStyle = (status: string) => {
   }
 };
 
-function NodeGraphContent({ agents = [] }: NodeGraphProps) {
+function NodeGraphContent({ agents }: NodeGraphProps) {
+  if (!agents) {
+    return <div>No agents available</div>;
+  }
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [positions] = useState(initialPositions);

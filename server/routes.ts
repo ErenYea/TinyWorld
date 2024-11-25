@@ -124,9 +124,9 @@ export function registerRoutes(app: Express, server: Server) {
               type: 'agents',
               payload: await getAgents()
             });
-          } catch (error) {
+          } catch (error: any) {
             console.error('[WebSocket] Failed to deploy agent:', error);
-            await broadcastSystemLog('error', `Failed to deploy agent: ${error.message}`);
+            await broadcastSystemLog('error', `Failed to deploy agent: ${error?.message || 'Unknown error'}`);
           }
           break;
 
