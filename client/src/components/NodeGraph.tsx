@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import ReactFlow, {
   Background,
   Controls,
+  MiniMap,
   Node,
   Edge,
-  ConnectionLineType,
   useNodesState,
   useEdgesState,
 } from 'reactflow';
+import { ErrorBoundary } from './ErrorBoundary';
 import 'reactflow/dist/style.css';
 
 interface Agent {
@@ -27,7 +28,7 @@ const CustomNode = ({ data }: { data: { label: string; task?: string; status: st
   <div className="text-center">
     <div className="font-semibold">{data.label}</div>
     {data.task && (
-      <div className="text-xs mt-1 text-purple-300 opacity-80">
+      <div className="text-sm text-gray-400 mt-1">
         {data.task}
       </div>
     )}
@@ -41,73 +42,59 @@ const CustomNode = ({ data }: { data: { label: string; task?: string; status: st
   </div>
 );
 
-// Define nodeTypes outside component for better performance
-const nodeTypes = {
-  default: CustomNode
-};
-
-// Initialize positions Map outside component
+// Initialize positions Map and nodeTypes outside component
 const initialPositions = new Map<string, { x: number; y: number }>();
+const nodeTypes = {
+  default: CustomNode,
+};
 
 const getNodeStyle = (status: string) => {
   const baseStyle = {
-    background: '#1a1a1a',
-    color: '#fff',
-    border: '2px solid',
-    borderRadius: '8px',
-    padding: '10px',
-    width: 180,
+    padding: 10,
+    borderRadius: 5,
+    border: '1px solid',
+    background: 'rgba(17, 17, 17, 0.9)',
   };
 
   switch (status) {
     case 'running':
-      return {
-        ...baseStyle,
-        borderColor: 'rgba(34, 197, 94, 0.5)', // green
-        boxShadow: '0 0 15px rgba(34, 197, 94, 0.3)',
-      };
+      return { ...baseStyle, borderColor: 'rgba(34, 197, 94, 0.5)' };
     case 'paused':
-      return {
-        ...baseStyle,
-        borderColor: 'rgba(234, 179, 8, 0.5)', // yellow
-        boxShadow: '0 0 15px rgba(234, 179, 8, 0.3)',
-      };
+      return { ...baseStyle, borderColor: 'rgba(234, 179, 8, 0.5)' };
     default:
-      return {
-        ...baseStyle,
-        borderColor: 'rgba(147, 51, 234, 0.3)', // purple
-      };
+      return { ...baseStyle, borderColor: 'rgba(107, 114, 128, 0.5)' };
   }
 };
 
-export function NodeGraph({ agents = [] }: NodeGraphProps) {
+function NodeGraphContent({ agents = [] }: NodeGraphProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [positions] = useState(initialPositions);
 
+  // Memoize node positions for performance
+  const getNodePosition = useMemo(() => (id: string) => {
+    if (!positions.has(id)) {
+      positions.set(id, {
+        x: 200 + Math.random() * 400,
+        y: 200 + Math.random() * 400,
+      });
+    }
+    return positions.get(id) || { x: 0, y: 0 };
+  }, [positions]);
+
   useEffect(() => {
-    // Early return if no agents
-    if (!agents || agents.length === 0) {
+    // Safely handle empty or undefined agents
+    if (!Array.isArray(agents) || agents.length === 0) {
       setNodes([]);
       setEdges([]);
       return;
     }
 
-    // Generate or retrieve consistent positions for nodes
-    agents.forEach((agent) => {
-      if (!positions.has(agent.id)) {
-        positions.set(agent.id, {
-          x: 200 + Math.random() * 400,
-          y: 200 + Math.random() * 400,
-        });
-      }
-    });
-
     // Update nodes with current agent data
     const newNodes: Node[] = agents.map((agent) => ({
       id: agent.id,
       type: 'default',
-      position: positions.get(agent.id) || { x: 0, y: 0 },
+      position: getNodePosition(agent.id),
       data: {
         label: agent.name,
         task: agent.currentTask,
@@ -116,25 +103,20 @@ export function NodeGraph({ agents = [] }: NodeGraphProps) {
       style: getNodeStyle(agent.status),
     }));
 
-    // Create edges for agent connections
+    // Create edges based on agent connections
     const newEdges: Edge[] = agents.flatMap((agent) =>
-      agent.connections.map((target) => ({
-        id: `${agent.id}-${target}`,
+      (agent.connections || []).map((targetId) => ({
+        id: `${agent.id}-${targetId}`,
         source: agent.id,
-        target,
-        type: 'straight',
-        animated: true,
-        style: {
-          stroke: '#a855f7',
-          strokeWidth: 2,
-        },
-        labelStyle: { fill: '#a855f7' },
+        target: targetId,
+        animated: agent.status === 'running',
+        style: { stroke: '#a855f7', strokeWidth: 2, opacity: 0.5 },
       }))
     );
 
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [agents, setNodes, setEdges]);
+  }, [agents, getNodePosition]);
 
   return (
     <div className="h-full w-full">
@@ -144,20 +126,24 @@ export function NodeGraph({ agents = [] }: NodeGraphProps) {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
-        connectionLineType={ConnectionLineType.Straight}
-        deleteKeyCode={null}
-        minZoom={0.2}
-        maxZoom={4}
         fitView
       >
         <Background
-          color="#a855f7"
-          gap={16}
+          gap={12}
           size={1}
           style={{ opacity: 0.1 }}
         />
         <Controls />
       </ReactFlow>
     </div>
+  );
+}
+
+// Export wrapped component with ErrorBoundary
+export function NodeGraph(props: NodeGraphProps) {
+  return (
+    <ErrorBoundary>
+      <NodeGraphContent {...props} />
+    </ErrorBoundary>
   );
 }
