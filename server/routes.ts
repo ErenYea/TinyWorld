@@ -5,28 +5,57 @@ import { agents, simulationLogs } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { WebSocketServer, WebSocket } from "ws";
 
+// Extend WebSocket type to include our custom property
+interface CustomWebSocket extends WebSocket {
+  isAlive: boolean;
+}
+
 export function registerRoutes(app: Express, server: Server) {
   const wss = new WebSocketServer({ 
     server,
     path: '/ws',
     verifyClient: (info, callback) => {
-      // Allow all origins for WebSocket connections
-      const origin = info.origin;
-      callback(true);
+      const origin = info.origin || 'unknown';
+      console.log(`WebSocket connection attempt from origin: ${origin}`);
+      callback(true, 200, 'Connection authorized');
     }
   });
   
-  wss.on('connection', (ws: WebSocket, req) => {
+  wss.on('connection', (ws: CustomWebSocket, req) => {
     const clientIp = req.socket.remoteAddress;
-    console.log(`WebSocket client connected from ${clientIp}`);
+    const clientId = Math.random().toString(36).substr(2, 9);
+    console.log(`WebSocket client connected - ID: ${clientId}, IP: ${clientIp}`);
     
-    ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
+    // Setup heartbeat
+    ws.isAlive = true;
+    ws.on('pong', () => {
+      ws.isAlive = true;
     });
 
-    ws.on('ping', () => {
-      ws.pong();
+    // Error handling
+    ws.on('error', (error) => {
+      console.error(`WebSocket error for client ${clientId}:`, error);
+      try {
+        ws.send(JSON.stringify({
+          type: 'error',
+          payload: 'An error occurred in the connection'
+        }));
+      } catch (sendError) {
+        console.error('Failed to send error message to client:', sendError);
+      }
     });
+
+    // Setup ping-pong heartbeat
+    const pingInterval = setInterval(() => {
+      if (!ws.isAlive) {
+        console.log(`Client ${clientId} is not responding, terminating connection`);
+        clearInterval(pingInterval);
+        return ws.terminate();
+      }
+      
+      ws.isAlive = false;
+      ws.ping();
+    }, 30000);
 
     ws.on('message', async (message) => {
       const data = JSON.parse(message.toString());
@@ -92,7 +121,7 @@ async function getAgents() {
   return await db.select().from(agents);
 }
 
-async function sendInitialState(ws: WebSocket) {
+async function sendInitialState(ws: CustomWebSocket) {
   const currentAgents = await getAgents();
   ws.send(JSON.stringify({
     type: 'agents',
@@ -101,7 +130,7 @@ async function sendInitialState(ws: WebSocket) {
 }
 
 function broadcastToAll(wss: WebSocketServer, data: any) {
-  wss.clients.forEach((client: WebSocket) => {
+  wss.clients.forEach((client: CustomWebSocket) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(data));
     }
