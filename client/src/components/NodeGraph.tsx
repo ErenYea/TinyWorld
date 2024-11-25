@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -19,8 +19,35 @@ interface Agent {
 }
 
 interface NodeGraphProps {
-  agents: Agent[];
+  agents?: Agent[];
 }
+
+// Custom node component definition
+const CustomNode = ({ data }: { data: { label: string; task?: string; status: string } }) => (
+  <div className="text-center">
+    <div className="font-semibold">{data.label}</div>
+    {data.task && (
+      <div className="text-xs mt-1 text-purple-300 opacity-80">
+        {data.task}
+      </div>
+    )}
+    <div className={`text-xs mt-1 ${
+      data.status === 'running' ? 'text-green-400' :
+      data.status === 'paused' ? 'text-yellow-400' :
+      'text-gray-400'
+    }`}>
+      {data.status.toUpperCase()}
+    </div>
+  </div>
+);
+
+// Define nodeTypes outside component for better performance
+const nodeTypes = {
+  default: CustomNode
+};
+
+// Initialize positions Map outside component
+const initialPositions = new Map<string, { x: number; y: number }>();
 
 const getNodeStyle = (status: string) => {
   const baseStyle = {
@@ -53,30 +80,19 @@ const getNodeStyle = (status: string) => {
   }
 };
 
-const CustomNode = ({ data }: { data: { label: string; task?: string; status: string } }) => (
-  <div className="text-center">
-    <div className="font-semibold">{data.label}</div>
-    {data.task && (
-      <div className="text-xs mt-1 text-purple-300 opacity-80">
-        {data.task}
-      </div>
-    )}
-    <div className={`text-xs mt-1 ${
-      data.status === 'running' ? 'text-green-400' :
-      data.status === 'paused' ? 'text-yellow-400' :
-      'text-gray-400'
-    }`}>
-      {data.status.toUpperCase()}
-    </div>
-  </div>
-);
-
-export function NodeGraph({ agents }: NodeGraphProps) {
+export function NodeGraph({ agents = [] }: NodeGraphProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [positions] = useState(new Map());
+  const [positions] = useState(initialPositions);
 
   useEffect(() => {
+    // Early return if no agents
+    if (!agents || agents.length === 0) {
+      setNodes([]);
+      setEdges([]);
+      return;
+    }
+
     // Generate or retrieve consistent positions for nodes
     agents.forEach((agent) => {
       if (!positions.has(agent.id)) {
@@ -91,7 +107,7 @@ export function NodeGraph({ agents }: NodeGraphProps) {
     const newNodes: Node[] = agents.map((agent) => ({
       id: agent.id,
       type: 'default',
-      position: positions.get(agent.id),
+      position: positions.get(agent.id) || { x: 0, y: 0 },
       data: {
         label: agent.name,
         task: agent.currentTask,
@@ -127,7 +143,7 @@ export function NodeGraph({ agents }: NodeGraphProps) {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        nodeTypes={{ default: CustomNode }}
+        nodeTypes={nodeTypes}
         connectionLineType={ConnectionLineType.Straight}
         deleteKeyCode={null}
         minZoom={0.2}

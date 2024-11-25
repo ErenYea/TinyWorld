@@ -24,6 +24,12 @@ interface SimulationMetrics {
   averageProcessingTime: number;
 }
 
+// Type for WebSocket message payloads
+interface WebSocketMessage {
+  type: 'agents' | 'agentState' | 'log' | 'status' | 'metrics';
+  payload: any;
+}
+
 export function useSimulation() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
@@ -42,36 +48,50 @@ export function useSimulation() {
     if (!socket) return;
 
     socket.addEventListener('message', (event) => {
-      const data = JSON.parse(event.data);
-      
-      switch (data.type) {
-        case 'agents':
-          setAgents(data.payload);
-          break;
-        case 'agentState':
-          setAgents(prev => prev.map(agent => 
-            agent.id === data.payload.id 
-              ? { ...agent, ...data.payload }
-              : agent
-          ));
-          break;
-        case 'log':
-          setLogs(prev => {
-            const newLogs = [...prev, {
-              id: crypto.randomUUID(),
-              timestamp: new Date().toISOString(),
-              ...data.payload
-            }];
-            // Keep only the last 100 logs to prevent memory issues
-            return newLogs.slice(-100);
-          });
-          break;
-        case 'status':
-          setSimulationStatus(data.payload);
-          break;
-        case 'metrics':
-          setMetrics(data.payload);
-          break;
+      try {
+        const data = JSON.parse(event.data) as WebSocketMessage;
+        
+        if (!data.type || !data.payload) {
+          console.error('Invalid message format received:', data);
+          return;
+        }
+
+        switch (data.type) {
+          case 'agents':
+            setAgents(data.payload || []);
+            break;
+          case 'agentState':
+            setAgents(prev => {
+              if (!prev) return [];
+              return prev.map(agent => 
+                agent.id === data.payload.id 
+                  ? { ...agent, ...data.payload }
+                  : agent
+              );
+            });
+            break;
+          case 'log':
+            setLogs(prev => {
+              const newLogs = [...prev, {
+                id: data.payload.id || crypto.randomUUID(),
+                timestamp: data.payload.timestamp || new Date().toISOString(),
+                type: data.payload.type,
+                message: data.payload.message
+              }];
+              return newLogs.slice(-100);
+            });
+            break;
+          case 'status':
+            setSimulationStatus(data.payload);
+            break;
+          case 'metrics':
+            setMetrics(data.payload);
+            break;
+          default:
+            console.warn('Unknown message type:', data.type);
+        }
+      } catch (error) {
+        console.error('Error processing WebSocket message:', error);
       }
     });
   }, [socket]);
@@ -103,7 +123,15 @@ export function useSimulation() {
     });
   };
 
-  const deployAgent = (agentData: any) => {
+  const deployAgent = (agentData: { name: string; description: string; goals: string }) => {
+    if (!wsStatus.connected) {
+      toast({
+        title: "Connection Error",
+        description: "Cannot deploy agent: WebSocket not connected",
+        variant: "destructive",
+      });
+      return;
+    }
     socket?.send(JSON.stringify({
       command: 'deploy',
       payload: agentData
