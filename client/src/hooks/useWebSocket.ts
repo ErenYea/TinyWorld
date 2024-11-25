@@ -14,30 +14,30 @@ export function useWebSocket(url: string) {
   });
   const socket = useRef<WebSocket | null>(null);
   const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = 10;
+  const maxReconnectAttempts = 5; // Reduced from 10 to 5 for Replit environment
   const heartbeatInterval = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
 
   const updateStatus = (update: Partial<WebSocketStatus>) => {
     setStatus(prev => ({ ...prev, ...update }));
-    console.log('WebSocket Status:', { ...status, ...update });
+    console.log('[WebSocket] Status Update:', { ...status, ...update });
   };
 
   const calculateBackoff = (attempt: number) => {
-    // Exponential backoff: 1s, 2s, 4s, 8s, etc., with a max of 30s
-    return Math.min(1000 * Math.pow(2, attempt), 30000);
+    // Shorter backoff times for Replit: 0.5s, 1s, 2s, 4s, max 8s
+    return Math.min(500 * Math.pow(2, attempt), 8000);
   };
 
   useEffect(() => {
     const connect = async () => {
       try {
-        // Wait a short delay before attempting connection to ensure server is ready
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Initial delay reduced for faster reconnection
+        await new Promise(resolve => setTimeout(resolve, 500));
         
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const port = window.location.port || '5000';
-        const wsUrl = `${protocol}//${window.location.hostname}:${port}/ws`;
-        console.log('[WebSocket] Attempting connection to:', wsUrl);
+        const wsUrl = window.location.protocol === 'https:' 
+          ? `wss://${window.location.hostname}/ws`
+          : `ws://${window.location.hostname}:${window.location.port || '5000'}/ws`;
+        console.log('[WebSocket] Connecting to:', wsUrl);
         
         const ws = new WebSocket(wsUrl);
         socket.current = ws;
@@ -105,13 +105,25 @@ export function useWebSocket(url: string) {
         };
 
         ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+          const errorMessage = error instanceof ErrorEvent ? error.message : 'Unknown error';
+          console.error('[WebSocket] Error:', errorMessage);
+          
+          // Determine specific error message based on connection state
+          let errorDescription = "Failed to connect to simulation server";
+          if (ws.readyState === WebSocket.CLOSING) {
+            errorDescription = "Connection is closing unexpectedly";
+          } else if (ws.readyState === WebSocket.CLOSED) {
+            errorDescription = "Connection was closed unexpectedly";
+          }
+          
           updateStatus({ 
-            lastError: 'Connection error occurred' 
+            lastError: errorDescription,
+            connected: false
           });
+          
           toast({
             title: "WebSocket Error",
-            description: "Failed to connect to simulation server",
+            description: errorDescription,
             variant: "destructive",
             duration: 5000,
           });
