@@ -39,8 +39,8 @@ export function MatrixAnimation({ className = '' }: MatrixAnimationProps) {
     window.addEventListener('resize', handleResize);
 
     function draw() {
-      if (!canvas) {
-        console.warn('Canvas not available');
+      if (!canvas || !ctx) {
+        console.warn('Canvas or context not available');
         return;
       }
 
@@ -53,14 +53,15 @@ export function MatrixAnimation({ className = '' }: MatrixAnimationProps) {
       }
 
       try {
-        // Create fade effect
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-        ctx.fillRect(0, 0, width, height);
+        // Create fade effect with TypeScript type safety
+        const context = ctx;
+        context.fillStyle = 'rgba(0, 0, 0, 0.05)';
+        context.fillRect(0, 0, width, height);
 
         // Set text properties
-        ctx.fillStyle = '#a855f7';
-        ctx.font = `${fontSize}px monospace`;
-        ctx.textAlign = 'center';
+        context.fillStyle = '#a855f7';
+        context.font = `${fontSize}px monospace`;
+        context.textAlign = 'center';
 
         // Update and draw drops
         for (let i = 0; i < drops.length; i++) {
@@ -68,7 +69,7 @@ export function MatrixAnimation({ className = '' }: MatrixAnimationProps) {
           const x = i * fontSize + fontSize / 2;
           const y = drops[i] * fontSize;
 
-          ctx.fillText(text, x, y);
+          context.fillText(text, x, y);
 
           // Reset drop when it reaches bottom
           if (y > height && Math.random() > 0.975) {
