@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { agents, simulationLogs } from "@db/schema";
+import { agents, simulationLogs, agentInteractions } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { WebSocket, WebSocketServer } from "ws";
 import type { Log } from "@db/schema";
@@ -459,6 +459,38 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       return exportData;
     } catch (error) {
       console.error('[SimulationManager] Error exporting agent data:', error);
+      throw error;
+    }
+  }
+
+  public async analyzeDiscussion(query: string): Promise<any> {
+    try {
+      // Get relevant logs
+      const logs = await db.select()
+        .from(simulationLogs)
+        .where(
+          and(
+            eq(simulationLogs.type, 'interaction'),
+            // Add more specific conditions based on query
+          )
+        );
+
+      // Use Claude to analyze the logs
+      const claudeService = ClaudeService.getInstance();
+      const analysisPrompt = `
+        Analyze the following conversation logs and ${query}:
+        ${logs.map(log => `${log.timestamp}: ${log.message}`).join('\n')}
+      `;
+
+      const { response } = await claudeService.generateResponse(
+        { name: 'LogAnalyzer', description: 'Analysis agent', goals: query },
+        analysisPrompt,
+        {}
+      );
+
+      return response;
+    } catch (error) {
+      console.error('[SimulationManager] Error analyzing discussion:', error);
       throw error;
     }
   }

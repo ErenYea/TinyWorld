@@ -227,6 +227,21 @@ export function registerRoutes(app: Express, server: Server) {
           }
           break;
 
+        case 'analyzeDiscussion':
+          try {
+            const { query } = data.payload;
+            const analysis = await simulationManager.analyzeDiscussion(query);
+            
+            broadcastToAll(wss, {
+              type: 'analysis',
+              payload: analysis
+            });
+          } catch (error) {
+            console.error('[WebSocket] Failed to analyze discussion:', error);
+            await broadcastSystemLog('error', `Failed to analyze discussion: ${error?.message || 'Unknown error'}`);
+          }
+          break;
+
         case 'updateWorldContext':
           try {
             const worldContext = data.payload;
