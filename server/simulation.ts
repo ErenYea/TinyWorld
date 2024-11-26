@@ -407,6 +407,76 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
     }
   }
 
+  public async reset() {
+    try {
+        // Clear simulation interval
+        if (this.simulationInterval) {
+            clearInterval(this.simulationInterval);
+            this.simulationInterval = null;
+        }
+
+        // Reset simulation status
+        this.simulationStatus = 'idle';
+        
+        // Clear agent states
+        this.agentStates.clear();
+
+        // Reset all agents to idle state
+        await db.update(agents)
+            .set({ status: 'idle' })
+            .where(or(
+                eq(agents.status, 'running'),
+                eq(agents.status, 'paused')
+            ));
+
+        // Reset metrics
+        this.metrics = {
+            totalInteractions: 0,
+            activeAgents: 0,
+            goalCompletionRate: 0,
+            averageProcessingTime: 0
+        };
+
+        // Reset world context
+        this.worldContext = {
+            name: "Default World",
+            description: "A simulation environment for AI agents to interact and evolve",
+            rules: ["Agents must collaborate to achieve goals", "Agents should respect resource constraints"],
+            state: { timestamp: new Date().toISOString() }
+        };
+
+        // Log reset
+        const log = await db.insert(simulationLogs)
+            .values({
+                type: 'info',
+                message: 'Simulation reset'
+            })
+            .returning();
+
+        this.broadcastLog(log[0]);
+
+        // Broadcast updates
+        this.broadcastToAll({
+            type: 'status',
+            payload: 'idle'
+        });
+
+        this.broadcastMetrics();
+        
+        // Broadcast updated agent list
+        const updatedAgents = await db.select().from(agents);
+        this.broadcastToAll({
+            type: 'agents',
+            payload: updatedAgents
+        });
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[SimulationManager] Error resetting simulation:', errorMessage);
+        throw error;
+    }
+}
+
   public async exportAgentData(agentId: string) {
     try {
       // Type safe validation
