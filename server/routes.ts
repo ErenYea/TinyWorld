@@ -187,24 +187,11 @@ export function registerRoutes(app: Express, server: Server) {
           break;
 
         case 'pause':
-          await db.update(agents)
-            .set({ status: 'paused' })
-            .where(eq(agents.status, 'running'));
-          
-          broadcastToAll(wss, {
-            type: 'status',
-            payload: 'paused'
-          });
+          await simulationManager.stop();
           break;
 
         case 'reset':
-          await db.update(agents)
-            .set({ status: 'idle' });
-          
-          broadcastToAll(wss, {
-            type: 'status',
-            payload: 'idle'
-          });
+          await simulationManager.reset();
           break;
 
         case 'updateWorldContext':

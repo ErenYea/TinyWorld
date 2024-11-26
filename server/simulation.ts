@@ -35,6 +35,7 @@ export class SimulationManager {
   private simulationInterval: NodeJS.Timeout | null = null;
   private agentStates: Map<string, AgentState> = new Map();
   private worldContext: WorldContext;
+  private simulationStatus: 'idle' | 'running' | 'paused' = 'idle';
   private metrics: SimulationMetrics = {
     totalInteractions: 0,
     activeAgents: 0,
@@ -150,7 +151,12 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
   }
 
   private async startSimulationLoop() {
+    this.simulationStatus = 'running';
     this.simulationInterval = setInterval(async () => {
+      if (this.simulationStatus !== 'running') {
+        return;
+      }
+
       const runningAgents = await db.select()
         .from(agents)
         .where(eq(agents.status, 'running'));
@@ -258,9 +264,77 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
     });
   }
 
-  public stop() {
+  public async stop() {
+    this.simulationStatus = 'paused';
     if (this.simulationInterval) {
       clearInterval(this.simulationInterval);
+      this.simulationInterval = null;
     }
+
+    // Clear all ongoing interactions
+    this.agentStates.clear();
+    
+    // Update all agents to paused state
+    await db.update(agents)
+      .set({ status: 'paused' });
+      
+    // Reset metrics
+    this.metrics = {
+      totalInteractions: 0,
+      activeAgents: 0,
+      goalCompletionRate: 0,
+      averageProcessingTime: 0
+    };
+    
+    // Broadcast updated status
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify({
+          type: 'status',
+          payload: 'paused'
+        }));
+      }
+    });
+  }
+
+  public async reset() {
+    this.simulationStatus = 'idle';
+    if (this.simulationInterval) {
+      clearInterval(this.simulationInterval);
+      this.simulationInterval = null;
+    }
+
+    // Clear all agent states and connections
+    this.agentStates.clear();
+    
+    // Reset all agents to idle state and clear their memory
+    await db.update(agents)
+      .set({ 
+        status: 'idle',
+        memory: {},
+        metadata: {}
+      });
+      
+    // Reset metrics
+    this.metrics = {
+      totalInteractions: 0,
+      activeAgents: 0,
+      goalCompletionRate: 0,
+      averageProcessingTime: 0
+    };
+    
+    // Broadcast reset status and metrics
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify({
+          type: 'status',
+          payload: 'idle'
+        }));
+        client.send(JSON.stringify({
+          type: 'metrics',
+          payload: this.metrics
+        }));
+      }
+    });
   }
 }
