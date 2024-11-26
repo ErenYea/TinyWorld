@@ -5,6 +5,13 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { Log } from "@db/schema";
 import { ClaudeService } from "./services/claude";
 
+interface WorldContext {
+  name: string;
+  description: string;
+  rules: string[];
+  state: Record<string, any>;
+}
+
 interface SimulationMetrics {
   totalInteractions: number;
   activeAgents: number;
@@ -27,6 +34,7 @@ export class SimulationManager {
   private wss: WebSocketServer;
   private simulationInterval: NodeJS.Timeout | null = null;
   private agentStates: Map<string, AgentState> = new Map();
+  private worldContext: WorldContext;
   private metrics: SimulationMetrics = {
     totalInteractions: 0,
     activeAgents: 0,
@@ -34,9 +42,33 @@ export class SimulationManager {
     averageProcessingTime: 0
   };
 
-  constructor(wss: WebSocketServer) {
+  constructor(wss: WebSocketServer, context: WorldContext = {
+    name: "Default World",
+    description: "A simulation environment for AI agents to interact and evolve",
+    rules: ["Agents must collaborate to achieve goals", "Agents should respect resource constraints"],
+    state: { timestamp: new Date().toISOString() }
+  }) {
     this.wss = wss;
+    this.worldContext = context;
     this.startSimulationLoop();
+  }
+
+  public updateWorldState(updates: Partial<Record<string, any>>) {
+    this.worldContext.state = {
+      ...this.worldContext.state,
+      ...updates,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    // Broadcast world state update
+    this.wss.clients.forEach((client: WebSocket) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify({
+          type: 'worldState',
+          payload: this.worldContext
+        }));
+      }
+    });
   }
 
   private determineInteraction(agent1Goals: string, agent2Goals: string): boolean {
@@ -57,13 +89,18 @@ export class SimulationManager {
 
   private async processAgentBehavior(agent: any, pattern: BehaviorPattern): Promise<string> {
     const claudeService = ClaudeService.getInstance();
-    
     try {
-      // Get current memory or initialize if none exists
       const currentMemory = agent.memory || {};
-      
-      // Generate context based on behavior pattern
-      const context = `You are currently in ${pattern} mode. Consider your goals and previous interactions to determine your next action.`;
+      const context = `
+World Context: ${this.worldContext.name}
+${this.worldContext.description}
+Rules: ${this.worldContext.rules.join('\n')}
+
+Current State:
+${JSON.stringify(this.worldContext.state, null, 2)}
+
+You are currently in ${pattern} mode. Consider your goals, the world context, and previous interactions to determine your next action.
+`;
       
       const { response, updatedMemory } = await claudeService.generateResponse(
         agent,
@@ -76,20 +113,20 @@ export class SimulationManager {
         .set({ memory: updatedMemory })
         .where(eq(agents.id, agent.id));
 
+      // Update world state with agent's action
+      this.updateWorldState({
+        lastAgentAction: {
+          agentId: agent.id,
+          agentName: agent.name,
+          action: response,
+          timestamp: new Date().toISOString()
+        }
+      });
+
       return `[${pattern}] ${response}`;
     } catch (error) {
       console.error('[SimulationManager] Error processing agent behavior:', error);
-      // Fallback to basic behavior if Claude API fails
-      const behaviors = {
-        ANALYZE: ['Scanning environment', 'Processing data', 'Evaluating outcomes'],
-        COLLABORATE: ['Seeking partners', 'Sharing information', 'Coordinating actions'],
-        OPTIMIZE: ['Identifying inefficiencies', 'Implementing improvements', 'Measuring results'],
-        LEARN: ['Gathering knowledge', 'Adapting strategies', 'Evolving capabilities']
-      };
-
-      const actions = behaviors[pattern];
-      const action = actions[Math.floor(Math.random() * actions.length)];
-      return `[${pattern}] ${action} (Fallback)`;
+      return `[${pattern}] Error processing behavior`;
     }
   }
 
