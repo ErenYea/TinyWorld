@@ -4,6 +4,7 @@ import { eq, and, or } from "drizzle-orm";
 import { WebSocket, WebSocketServer } from "ws";
 import type { Log, Agent } from "@db/schema";
 import { ClaudeService } from "./services/claude";
+import type { Json } from "drizzle-orm/pg-core";
 
 interface WorldContext {
   name: string;
@@ -60,7 +61,6 @@ export class SimulationManager {
       lastUpdated: new Date().toISOString()
     };
     
-    // Broadcast world state update
     this.broadcastToAll({
       type: 'worldState',
       payload: this.worldContext
@@ -80,7 +80,6 @@ export class SimulationManager {
   }
 
   private determineInteraction(agent1Goals: string, agent2Goals: string): boolean {
-    // Simple goal compatibility check
     const goals1 = agent1Goals.toLowerCase();
     const goals2 = agent2Goals.toLowerCase();
     return goals1.includes('collaborate') || goals2.includes('collaborate') ||
@@ -96,13 +95,15 @@ export class SimulationManager {
   }
 
   private async processAgentBehavior(agent: Agent, pattern: BehaviorPattern): Promise<string> {
+    // Add immediate return if simulation is not running
     if (this.simulationStatus !== 'running') {
-        return ''; // Don't process behaviors when not running
+      console.log('[SimulationManager] Not processing behavior - simulation not running');
+      return '';
     }
     
     const claudeService = ClaudeService.getInstance();
     try {
-      const currentMemory = agent.memory || {};
+      const currentMemory = agent.memory as Record<string, any>;
       const context = `
 World Context: ${this.worldContext.name}
 ${this.worldContext.description}
@@ -122,7 +123,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
 
       // Update agent memory in database
       await db.update(agents)
-        .set({ memory: updatedMemory })
+        .set({ memory: updatedMemory as Json })
         .where(eq(agents.id, agent.id));
 
       // Update world state with agent's action
@@ -164,7 +165,6 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
         .set({ status: newStatus })
         .where(eq(agents.id, agentId));
 
-      // Log status change
       const log = await db.insert(simulationLogs)
         .values({
           agentId,
@@ -191,7 +191,6 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
         return;
       }
 
-      // Clear any existing interval
       if (this.simulationInterval) {
         clearInterval(this.simulationInterval);
         this.simulationInterval = null;
@@ -199,7 +198,6 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
 
       this.simulationStatus = 'running';
       
-      // Update all idle agents to running state
       const idleAgents = await db.select()
         .from(agents)
         .where(eq(agents.status, 'idle'));
@@ -210,25 +208,23 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
 
       this.simulationInterval = setInterval(async () => {
         if (this.simulationStatus !== 'running') {
-            console.log('[SimulationManager] Simulation not running, skipping loop');
-            return;
+          console.log('[SimulationManager] Simulation not running, skipping loop');
+          return;
         }
-        try {
 
+        try {
           const runningAgents = await db.select()
             .from(agents)
             .where(eq(agents.status, 'running'));
 
           console.log(`[SimulationManager] Processing ${runningAgents.length} running agents`);
 
-          // Update active agents count
           this.updateMetrics(runningAgents.length);
 
           for (const agent of runningAgents) {
             try {
               const startTime = Date.now();
               
-              // Initialize or get agent state
               if (!this.agentStates.has(agent.id)) {
                 this.agentStates.set(agent.id, {
                   id: agent.id,
@@ -243,7 +239,6 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
               const pattern = this.determineBehaviorPattern(agent.goals);
               const currentBehavior = await this.processAgentBehavior(agent, pattern);
               
-              // Process interactions with other agents
               for (const otherAgent of runningAgents) {
                 if (agent.id !== otherAgent.id && 
                     this.determineInteraction(agent.goals, otherAgent.goals)) {
@@ -253,7 +248,6 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
                   agentState.interactionCount++;
                   this.metrics.totalInteractions++;
 
-                  // Log interaction
                   const log = await db.insert(simulationLogs)
                     .values({
                       agentId: agent.id,
@@ -266,12 +260,10 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
                 }
               }
 
-              // Update agent state
               const agentState = this.agentStates.get(agent.id)!;
               agentState.currentTask = currentBehavior;
               agentState.processingTime = Date.now() - startTime;
 
-              // Verify agent is still in running state
               const currentAgent = await db.select()
                 .from(agents)
                 .where(eq(agents.id, agent.id))
@@ -282,7 +274,6 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
                 continue;
               }
 
-              // Broadcast agent state
               this.broadcastToAll({
                 type: 'agentState',
                 payload: {
@@ -294,7 +285,6 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
                 }
               });
 
-              // Log general behavior
               const log = await db.insert(simulationLogs)
                 .values({
                   agentId: agent.id,
@@ -308,7 +298,6 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
               const errorMessage = error instanceof Error ? error.message : 'Unknown error';
               console.error(`[SimulationManager] Error processing agent ${agent.id}:`, errorMessage);
               
-              // Log the error to simulation logs
               const errorLog = await db.insert(simulationLogs)
                 .values({
                   agentId: agent.id,
@@ -324,7 +313,6 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           console.error('[SimulationManager] Error in simulation loop:', errorMessage);
           
-          // Log the error to the simulation logs
           const errorLog = await db.insert(simulationLogs)
             .values({
               type: 'error',
@@ -345,7 +333,6 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
   private broadcastLog(log: Log) {
     console.log(`[SimulationManager] Broadcasting log: ${JSON.stringify(log)}`);
     
-    // Format timestamp if not already formatted
     const formattedLog = {
       ...log,
       timestamp: log.timestamp ? new Date(log.timestamp).toISOString() : new Date().toISOString()
@@ -358,301 +345,167 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
   }
 
   public async stop() {
-    if (this.simulationStatus !== 'running') {
-        console.log('[SimulationManager] Simulation is not running');
-        return;
-    }
-
     console.log('[SimulationManager] Stopping simulation');
     
     // Set status first to prevent new interactions
     this.simulationStatus = 'paused';
     
     try {
-        // Clear simulation interval
-        if (this.simulationInterval) {
-            clearInterval(this.simulationInterval);
-            this.simulationInterval = null;
-        }
+      // Clear simulation interval first
+      if (this.simulationInterval) {
+        clearInterval(this.simulationInterval);
+        this.simulationInterval = null;
+      }
 
-        // Update all running agents to paused state
-        await db.update(agents)
-            .set({ status: 'paused' })
-            .where(eq(agents.status, 'running'));
+      // Update all running agents to paused state
+      await db.update(agents)
+        .set({ status: 'paused' })
+        .where(eq(agents.status, 'running'));
 
-        // Clear all ongoing interactions and state
-        this.agentStates.clear();
-        
-        // Broadcast updated status
-        this.broadcastToAll({
-            type: 'status',
-            payload: 'paused'
-        });
+      // Clear all ongoing interactions and state
+      this.agentStates.clear();
+      
+      // Reset metrics for paused state
+      this.metrics.activeAgents = 0;
+      this.metrics.averageProcessingTime = 0;
+      
+      // Broadcast updates
+      this.broadcastToAll({
+        type: 'status',
+        payload: 'paused'
+      });
+      
+      this.broadcastMetrics();
 
-        // Log simulation pause
-        const log = await db.insert(simulationLogs)
-            .values({
-                type: 'info',
-                message: 'Simulation paused',
-            })
-            .returning();
-        
-        this.broadcastLog(log[0]);
+      const log = await db.insert(simulationLogs)
+        .values({
+          type: 'info',
+          message: 'Simulation paused - all agents stopped'
+        })
+        .returning();
+      
+      this.broadcastLog(log[0]);
 
     } catch (error) {
-        console.error('[SimulationManager] Error stopping simulation:', error);
-        throw error;
+      console.error('[SimulationManager] Error stopping simulation:', error);
+      throw error;
     }
   }
 
   public async reset() {
-    try {
-        // Clear simulation interval
-        if (this.simulationInterval) {
-            clearInterval(this.simulationInterval);
-            this.simulationInterval = null;
-        }
-
-        // Reset simulation status
-        this.simulationStatus = 'idle';
-        
-        // Clear agent states
-        this.agentStates.clear();
-
-        // Reset all agents to idle state
-        await db.update(agents)
-            .set({ status: 'idle' })
-            .where(or(
-                eq(agents.status, 'running'),
-                eq(agents.status, 'paused')
-            ));
-
-        // Reset metrics
-        this.metrics = {
-            totalInteractions: 0,
-            activeAgents: 0,
-            goalCompletionRate: 0,
-            averageProcessingTime: 0
-        };
-
-        // Reset world context
-        this.worldContext = {
-            name: "Default World",
-            description: "A simulation environment for AI agents to interact and evolve",
-            rules: ["Agents must collaborate to achieve goals", "Agents should respect resource constraints"],
-            state: { timestamp: new Date().toISOString() }
-        };
-
-        // Log reset
-        const log = await db.insert(simulationLogs)
-            .values({
-                type: 'info',
-                message: 'Simulation reset'
-            })
-            .returning();
-
-        this.broadcastLog(log[0]);
-
-        // Broadcast updates
-        this.broadcastToAll({
-            type: 'status',
-            payload: 'idle'
-        });
-
-        this.broadcastMetrics();
-        
-        // Broadcast updated agent list
-        const updatedAgents = await db.select().from(agents);
-        this.broadcastToAll({
-            type: 'agents',
-            payload: updatedAgents
-        });
-
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error('[SimulationManager] Error resetting simulation:', errorMessage);
-        throw error;
+    // First stop any running simulation
+    if (this.simulationStatus === 'running') {
+      await this.stop();
     }
-}
-
-  public async exportAgentData(agentId: string) {
+    
+    this.simulationStatus = 'idle';
+    
     try {
-      // Type safe validation
-      if (!agentId || typeof agentId !== 'string') {
-        throw new Error('Invalid agent ID provided');
+      // Clear all states and intervals
+      this.agentStates.clear();
+      if (this.simulationInterval) {
+        clearInterval(this.simulationInterval);
+        this.simulationInterval = null;
       }
 
-      // Get agent data with type safety
-      const [agent] = await db.select({
-        id: agents.id,
-        name: agents.name,
-        description: agents.description,
-        goals: agents.goals,
-        status: agents.status,
-        metadata: agents.metadata,
-        memory: agents.memory,
-        createdAt: agents.createdAt
-      })
-      .from(agents)
-      .where(eq(agents.id, agentId))
-      .limit(1);
+      // Reset all agents to idle state
+      await db.update(agents)
+        .set({ 
+          status: 'idle',
+          memory: {} as Json // Clear agent memory
+        })
+        .where(or(
+          eq(agents.status, 'running'),
+          eq(agents.status, 'paused')
+        ));
+
+      // Reset metrics
+      this.metrics = {
+        totalInteractions: 0,
+        activeAgents: 0,
+        goalCompletionRate: 0,
+        averageProcessingTime: 0
+      };
+
+      // Broadcast reset state
+      this.broadcastToAll({
+        type: 'status',
+        payload: 'idle'
+      });
+      
+      this.broadcastMetrics();
+
+      const log = await db.insert(simulationLogs)
+        .values({
+          type: 'info',
+          message: 'Simulation fully reset - all agents and states cleared'
+        })
+        .returning();
+      
+      this.broadcastLog(log[0]);
+
+    } catch (error) {
+      console.error('[SimulationManager] Error resetting simulation:', error);
+      throw error;
+    }
+  }
+
+  public async exportAgentData(agentId: string): Promise<{
+    agent: Agent;
+    interactions: any[];
+    logs: Log[];
+  }> {
+    try {
+      const [agent] = await db.select()
+        .from(agents)
+        .where(eq(agents.id, agentId))
+        .limit(1);
 
       if (!agent) {
         throw new Error(`Agent with ID ${agentId} not found`);
       }
 
-      // Get agent interactions with specified fields
-      const interactions = await db.select({
-        id: agentInteractions.id,
-        sourceAgentId: agentInteractions.sourceAgentId,
-        targetAgentId: agentInteractions.targetAgentId,
-        prompt: agentInteractions.prompt,
-        response: agentInteractions.response,
-        metadata: agentInteractions.metadata,
-        timestamp: agentInteractions.timestamp
-      })
-      .from(agentInteractions)
-      .where(
-        or(
-          eq(agentInteractions.sourceAgentId, agentId),
-          eq(agentInteractions.targetAgentId, agentId)
-        )
-      )
-      .orderBy(agentInteractions.timestamp);
-
-      // Get agent logs with specified fields
-      const logs = await db.select({
-        id: simulationLogs.id,
-        type: simulationLogs.type,
-        message: simulationLogs.message,
-        timestamp: simulationLogs.timestamp
-      })
-      .from(simulationLogs)
-      .where(eq(simulationLogs.agentId, agentId))
-      .orderBy(simulationLogs.timestamp);
-
-      const exportData = {
-        agent,
-        interactions,
-        logs,
-        stats: {
-          totalInteractions: interactions.length,
-          totalLogs: logs.length,
-          exportTime: new Date().toISOString()
-        }
-      };
-
-      // Log successful export
-      await db.insert(simulationLogs)
-        .values({
-          agentId,
-          type: 'info',
-          message: `Successfully exported data for agent: ${agent.name}`
-        });
-
-      // Broadcast export data
-      this.broadcastToAll({
-        type: 'agentExport',
-        payload: exportData
-      });
-
-      return exportData;
-    } catch (error) {
-      // Enhanced error handling
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[SimulationManager] Error exporting agent data:', {
-        agentId,
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined
-      });
-
-      // Log export error
-      await db.insert(simulationLogs)
-        .values({
-          agentId,
-          type: 'error',
-          message: `Failed to export agent data: ${errorMessage}`
-        });
-
-      throw new Error(`Failed to export agent data: ${errorMessage}`);
-    }
-  }
-
-  public async analyzeDiscussion(query: string): Promise<any> {
-    try {
-      // Get relevant logs
-      const logs = await db.select()
-        .from(simulationLogs)
+      const interactions = await db.select()
+        .from(agentInteractions)
         .where(
-          and([
-            eq(simulationLogs.type, 'interaction')
-            // Add more specific conditions based on query
-          ])
+          or(
+            eq(agentInteractions.sourceAgentId, agentId),
+            eq(agentInteractions.targetAgentId, agentId)
+          )
         );
 
-      // Use Claude to analyze the logs
-      const claudeService = ClaudeService.getInstance();
-      const analysisPrompt = `
-        Analyze the following conversation logs and ${query}:
-        ${logs.map(log => `${log.timestamp}: ${log.message}`).join('\n')}
-      `;
+      const logs = await db.select()
+        .from(simulationLogs)
+        .where(eq(simulationLogs.agentId, agentId));
 
-      const analysisAgent: Agent = {
-        id: 'analysis-agent',
-        name: 'LogAnalyzer',
-        description: 'Analysis agent',
-        goals: query,
-        status: 'idle',
-        metadata: {},
-        memory: {},
-        createdAt: new Date()
+      return {
+        agent,
+        interactions,
+        logs
       };
-
-      const { response } = await claudeService.generateResponse(
-        analysisAgent,
-        analysisPrompt,
-        {}
-      );
-
-      return response;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[SimulationManager] Error analyzing discussion:', errorMessage);
+      console.error('[SimulationManager] Error exporting agent data:', errorMessage);
       throw error;
     }
   }
 
   public async terminateAgent(agentId: string) {
     try {
-      // Update agent status to idle and clear memory
+      // Update agent status to idle
       await db.update(agents)
-        .set({ 
-          status: 'idle',
-          memory: {},
-          metadata: {}
-        })
+        .set({ status: 'idle', memory: {} as Json })
         .where(eq(agents.id, agentId));
 
-      // Get current agent state
-      const currentState = this.agentStates.get(agentId);
-      
-      if (currentState) {
-        // Remove connections to this agent from other agents
-        for (const [otherAgentId, state] of this.agentStates.entries()) {
-          if (state.connections.has(agentId)) {
-            state.connections.delete(agentId);
-          }
-        }
-        // Remove from active states
-        this.agentStates.delete(agentId);
-      }
+      // Remove from active states
+      this.agentStates.delete(agentId);
 
       // Log termination
       const log = await db.insert(simulationLogs)
         .values({
           agentId,
           type: 'info',
-          message: 'Agent terminated',
+          message: 'Agent terminated and reset to idle state'
         })
         .returning();
 
@@ -667,6 +520,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
         type: 'agents',
         payload: updatedAgents
       });
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[SimulationManager] Error terminating agent:', errorMessage);
