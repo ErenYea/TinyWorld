@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { AgentDeployment } from "../components/AgentDeployment";
+import { WorldContextConfig } from "../components/WorldContextConfig";
 import { ControlPanel } from "../components/ControlPanel";
 import { LogViewer } from "../components/LogViewer";
 import { NodeGraph } from "../components/NodeGraph";
@@ -18,7 +19,8 @@ export default function SimulationDashboard() {
     pauseSimulation,
     resetSimulation,
     deployAgent,
-    wsStatus
+    wsStatus,
+    updateWorldContext
   } = useSimulation();
 
   return (
@@ -31,6 +33,10 @@ export default function SimulationDashboard() {
         <div className="grid grid-cols-12 gap-4">
           {/* Left Column */}
           <div className="col-span-3 space-y-4">
+            <Card className="p-4 bg-gray-900/50 border-purple-500/30">
+              <WorldContextConfig onUpdate={updateWorldContext} />
+            </Card>
+
             <Card className="p-4 bg-gray-900/50 border-purple-500/30">
               <AgentDeployment onDeploy={deployAgent} />
             </Card>

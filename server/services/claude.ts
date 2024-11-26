@@ -44,18 +44,20 @@ Respond in character as the AI agent, considering your goals and previous contex
         }]
       });
 
+      const messageContent = response.content[0].text || '';
+
       // Update memory with new interaction
       const updatedMemory = {
         ...memory,
         lastInteraction: {
           context,
-          response: response.content[0].text,
+          response: messageContent,
           timestamp: new Date().toISOString()
         }
       };
 
       return {
-        response: response.content[0].text,
+        response: messageContent,
         updatedMemory: updatedMemory
       };
     } catch (error) {

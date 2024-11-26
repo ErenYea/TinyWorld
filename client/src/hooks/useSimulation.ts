@@ -137,6 +137,21 @@ export function useSimulation() {
     });
   };
 
+  const updateWorldContext = (contextData: any) => {
+    if (!wsStatus.connected) {
+      toast({
+        title: "Connection Error",
+        description: "Cannot update world context: WebSocket not connected",
+        variant: "destructive",
+      });
+      return;
+    }
+    socket?.send(JSON.stringify({
+      command: 'updateWorldContext',
+      payload: contextData
+    }));
+  };
+
   const deployAgent = (agentData: { name: string; description: string; goals: string }) => {
     if (!wsStatus.connected) {
       toast({
@@ -161,6 +176,7 @@ export function useSimulation() {
     pauseSimulation,
     resetSimulation,
     deployAgent,
+    updateWorldContext,
     wsStatus,
   };
 }

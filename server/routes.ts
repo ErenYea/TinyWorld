@@ -206,6 +206,23 @@ export function registerRoutes(app: Express, server: Server) {
             payload: 'idle'
           });
           break;
+
+        case 'updateWorldContext':
+          try {
+            const worldContext = data.payload;
+            simulationManager.updateWorldState(worldContext);
+            
+            await broadcastSystemLog('info', `World context updated: ${worldContext.name}`);
+            
+            broadcastToAll(wss, {
+              type: 'worldContext',
+              payload: worldContext
+            });
+          } catch (error: any) {
+            console.error('[WebSocket] Failed to update world context:', error);
+            await broadcastSystemLog('error', `Failed to update world context: ${error?.message || 'Unknown error'}`);
+          }
+          break;
       }
     });
 
