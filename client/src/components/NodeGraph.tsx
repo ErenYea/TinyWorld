@@ -145,18 +145,38 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [positions] = useState<NodePositions>(new Map());
   
-  const getNodePosition = useCallback((id: string) => {
+  const getNodePosition = useCallback((id: string, index: number, total: number) => {
     if (!positions.has(id)) {
+      // Calculate position in a circular layout
+      const radius = Math.min(800, 600) * 0.4; // 40% of the smaller dimension
+      const angle = (2 * Math.PI * index) / total;
+      const centerX = 400; // Center of the visualization area
+      const centerY = 300;
+      
       positions.set(id, {
-        x: Math.random() * 800,
-        y: Math.random() * 600,
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
       });
+      
+      console.log(`[NodeGraph] Positioned node ${id} at angle ${angle}, index ${index}/${total}`);
     }
-    return positions.get(id) || { x: 0, y: 0 };
+    return positions.get(id) || { x: centerX, y: centerY };
   }, [positions]);
 
   useEffect(() => {
+    console.log('[NodeGraph] Agents update received:', {
+      agentsReceived: agents?.length || 0,
+      agentsValid: Array.isArray(agents),
+      agentDetails: agents?.map(a => ({
+        id: a.id,
+        name: a.name,
+        status: a.status,
+        connections: a.connections?.length || 0
+      }))
+    });
+
     if (!Array.isArray(agents) || agents.length === 0) {
+      console.log('[NodeGraph] No valid agents to display');
       setNodes([]);
       setEdges([]);
       return;
@@ -166,18 +186,15 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
     const newNodes: Node[] = agents.map((agent) => ({
       id: agent.id,
       type: 'default',
-      position: getNodePosition(agent.id),
+      position: getNodePosition(agent.id, agents.indexOf(agent), agents.length),
       data: {
         label: agent.name,
         task: agent.currentTask,
         status: agent.status,
         description: agent.description || 'No description available',
       },
-      style: {
-        ...getNodeStyle(agent.status),
-        opacity: 1,
-        transform: 'scale(1)',
-      },
+      className: `node-${agent.status}`,
+      style: getNodeStyle(agent.status),
     }));
 
     // Create edges based on agent connections

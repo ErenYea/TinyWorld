@@ -445,10 +445,10 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       })
       .from(agentInteractions)
       .where(
-        or([
+        or(
           eq(agentInteractions.sourceAgentId, agentId),
           eq(agentInteractions.targetAgentId, agentId)
-        ])
+        )
       )
       .orderBy(agentInteractions.timestamp);
 
