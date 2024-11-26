@@ -205,6 +205,28 @@ export function registerRoutes(app: Express, server: Server) {
           await simulationManager.reset();
           break;
 
+        case 'exportData':
+          try {
+            const { agentId } = data.payload;
+            await simulationManager.exportAgentData(agentId);
+            await broadcastSystemLog('info', `Agent data exported for agent ID: ${agentId}`);
+          } catch (error: any) {
+            console.error('[WebSocket] Failed to export agent data:', error);
+            await broadcastSystemLog('error', `Failed to export agent data: ${error?.message || 'Unknown error'}`);
+          }
+          break;
+
+        case 'terminate':
+          try {
+            const { agentId } = data.payload;
+            await simulationManager.terminateAgent(agentId);
+            await broadcastSystemLog('info', `Agent terminated: ${agentId}`);
+          } catch (error: any) {
+            console.error('[WebSocket] Failed to terminate agent:', error);
+            await broadcastSystemLog('error', `Failed to terminate agent: ${error?.message || 'Unknown error'}`);
+          }
+          break;
+
         case 'updateWorldContext':
           try {
             const worldContext = data.payload;

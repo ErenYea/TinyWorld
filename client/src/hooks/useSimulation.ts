@@ -167,6 +167,36 @@ export function useSimulation() {
     }));
   };
 
+  const exportAgentData = (agentId: string) => {
+    if (!wsStatus.connected) {
+      toast({
+        title: "Connection Error",
+        description: "Cannot export agent data: WebSocket not connected",
+        variant: "destructive",
+      });
+      return;
+    }
+    socket?.send(JSON.stringify({
+      command: 'exportData',
+      payload: { agentId }
+    }));
+  };
+
+  const terminateAgent = (agentId: string) => {
+    if (!wsStatus.connected) {
+      toast({
+        title: "Connection Error",
+        description: "Cannot terminate agent: WebSocket not connected",
+        variant: "destructive",
+      });
+      return;
+    }
+    socket?.send(JSON.stringify({
+      command: 'terminate',
+      payload: { agentId }
+    }));
+  };
+
   return {
     agents,
     logs,
@@ -177,6 +207,8 @@ export function useSimulation() {
     resetSimulation,
     deployAgent,
     updateWorldContext,
+    exportAgentData,
+    terminateAgent,
     wsStatus,
   };
 }

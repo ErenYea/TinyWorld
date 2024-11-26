@@ -413,6 +413,100 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
     });
   }
 
+  public async exportAgentData(agentId: string) {
+    try {
+      const agent = await db.select()
+        .from(agents)
+        .where(eq(agents.id, agentId))
+        .limit(1);
+
+      if (!agent[0]) {
+        throw new Error('Agent not found');
+      }
+
+      // Get agent interactions
+      const interactions = await db.select()
+        .from(agentInteractions)
+        .where(
+          or(
+            eq(agentInteractions.sourceAgentId, agentId),
+            eq(agentInteractions.targetAgentId, agentId)
+          )
+        );
+
+      // Get agent logs
+      const logs = await db.select()
+        .from(simulationLogs)
+        .where(eq(simulationLogs.agentId, agentId));
+
+      const exportData = {
+        agent: agent[0],
+        interactions,
+        logs,
+        exportTime: new Date().toISOString()
+      };
+
+      // Broadcast export data
+      this.wss.clients.forEach((client: WebSocket) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: 'agentExport',
+            payload: exportData
+          }));
+        }
+      });
+
+      return exportData;
+    } catch (error) {
+      console.error('[SimulationManager] Error exporting agent data:', error);
+      throw error;
+    }
+  }
+
+  public async terminateAgent(agentId: string) {
+    try {
+      // Update agent status to idle and clear memory
+      await db.update(agents)
+        .set({ 
+          status: 'idle',
+          memory: {},
+          metadata: {}
+        })
+        .where(eq(agents.id, agentId));
+
+      // Remove from active states
+      this.agentStates.delete(agentId);
+
+      // Log termination
+      const log = await db.insert(simulationLogs)
+        .values({
+          agentId,
+          type: 'info',
+          message: 'Agent terminated',
+        })
+        .returning();
+
+      this.broadcastLog(log[0]);
+
+      // Update metrics
+      this.updateMetrics(this.agentStates.size);
+
+      // Broadcast updated agent list
+      const updatedAgents = await db.select().from(agents);
+      this.wss.clients.forEach((client: WebSocket) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: 'agents',
+            payload: updatedAgents
+          }));
+        }
+      });
+    } catch (error) {
+      console.error('[SimulationManager] Error terminating agent:', error);
+      throw error;
+    }
+  }
+
   public async reset() {
     this.simulationStatus = 'idle';
     if (this.simulationInterval) {

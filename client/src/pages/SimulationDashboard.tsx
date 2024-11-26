@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { AgentDeployment } from "../components/AgentDeployment";
 import { WorldContextConfig } from "../components/WorldContextConfig";
+import { AgentManagement } from "../components/AgentManagement";
 import { ControlPanel } from "../components/ControlPanel";
 import { LogViewer } from "../components/LogViewer";
 import { NodeGraph } from "../components/NodeGraph";
@@ -20,7 +21,9 @@ export default function SimulationDashboard() {
     resetSimulation,
     deployAgent,
     wsStatus,
-    updateWorldContext
+    updateWorldContext,
+    exportAgentData,
+    terminateAgent
   } = useSimulation();
 
   return (
@@ -39,6 +42,14 @@ export default function SimulationDashboard() {
 
             <Card className="p-4 bg-gray-900/50 border-purple-500/30">
               <AgentDeployment onDeploy={deployAgent} />
+            </Card>
+
+            <Card className="p-4 bg-gray-900/50 border-purple-500/30">
+              <AgentManagement 
+                agents={agents || []}
+                onExportData={exportAgentData}
+                onTerminateAgent={terminateAgent}
+              />
             </Card>
             
             <Card className="p-4 bg-gray-900/50 border-purple-500/30">
