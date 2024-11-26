@@ -95,13 +95,14 @@ export class SimulationManager {
   }
 
   private async processAgentBehavior(agent: Agent, pattern: BehaviorPattern): Promise<string> {
-    // Immediate return if simulation is not running
+    // Immediate status check with logging
     if (this.simulationStatus !== 'running') {
-      console.log('[SimulationManager] Not processing behavior - simulation not running');
+      console.log('[SimulationManager] Skipping behavior processing - simulation status:', this.simulationStatus);
       return '';
     }
-
-    // Check again after getting lock to ensure status hasn't changed
+    
+    // Synchronize state check
+    await new Promise(resolve => setTimeout(resolve, 0));
     if (this.simulationStatus !== 'running') {
       return '';
     }
@@ -212,12 +213,18 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       }
 
       this.simulationInterval = setInterval(async () => {
+        // Immediate status check
         if (this.simulationStatus !== 'running') {
-          console.log('[SimulationManager] Simulation not running, skipping loop');
+          console.log('[SimulationManager] Skipping loop - simulation status:', this.simulationStatus);
           return;
         }
-
+        
         try {
+          // Double-check status hasn't changed
+          if (this.simulationStatus !== 'running') {
+            return;
+          }
+
           const runningAgents = await db.select()
             .from(agents)
             .where(eq(agents.status, 'running'));
@@ -350,16 +357,18 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
   }
 
   public async stop() {
+    console.log('[SimulationManager] Stopping simulation');
+    
     // Set status first to prevent new interactions
     this.simulationStatus = 'paused';
     
+    // Clear interval immediately
+    if (this.simulationInterval) {
+      clearInterval(this.simulationInterval);
+      this.simulationInterval = null;
+    }
+    
     try {
-      // Clear simulation interval immediately
-      if (this.simulationInterval) {
-        clearInterval(this.simulationInterval);
-        this.simulationInterval = null;
-      }
-
       // Force clear all ongoing processes
       this.agentStates.clear();
       
@@ -367,26 +376,17 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       await db.update(agents)
         .set({ status: 'paused' })
         .where(eq(agents.status, 'running'));
-
-      // Reset metrics for paused state
+        
+      // Reset active metrics
       this.metrics.activeAgents = 0;
-      this.metrics.averageProcessingTime = 0;
+      this.updateMetrics(0);
       
-      // Broadcast updates
+      // Broadcast status update
       this.broadcastToAll({
         type: 'status',
         payload: 'paused'
       });
       
-      this.broadcastMetrics();
-
-      // Clear any pending tasks
-      setTimeout(() => {
-        if (this.simulationStatus === 'paused') {
-          this.agentStates.clear();
-        }
-      }, 100);
-
       const log = await db.insert(simulationLogs)
         .values({
           type: 'info',
@@ -395,7 +395,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
         .returning();
       
       this.broadcastLog(log[0]);
-
+      
     } catch (error) {
       console.error('[SimulationManager] Error stopping simulation:', error);
       throw error;
