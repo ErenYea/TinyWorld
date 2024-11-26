@@ -35,7 +35,7 @@ export default function SimulationDashboard() {
         
         <div className="grid grid-cols-12 gap-6">
           {/* Left Column - Wider */}
-          <div className="col-span-4 space-y-6">
+          <div className="col-span-5 space-y-6">
             <Card className="p-6 bg-gray-900/50 border-purple-500/30">
               <WorldContextConfig onUpdate={updateWorldContext} />
             </Card>
@@ -54,7 +54,7 @@ export default function SimulationDashboard() {
           </div>
 
           {/* Center Column - Main visualization */}
-          <div className="col-span-8">
+          <div className="col-span-7">
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
                 <Card className="p-6 bg-gray-900/50 border-purple-500/30">

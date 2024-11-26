@@ -24,10 +24,10 @@ export function AgentManagement({ agents, onExportData, onTerminateAgent }: Agen
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <h2 className="text-2xl font-semibold mb-6 text-purple-400">Agent Management</h2>
       
-      <ScrollArea className="h-[600px] overflow-y-auto pr-4">
+      <ScrollArea className="h-[calc(100vh-24rem)] overflow-y-auto pr-4">
         <div className="space-y-6">
           {agents?.map((agent) => (
             <Card 
@@ -40,7 +40,7 @@ export function AgentManagement({ agents, onExportData, onTerminateAgent }: Agen
               )}
               onClick={() => setSelectedAgent(agent.id)}
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-8">
                 <div className="space-y-3 flex-1 min-w-0">
                   <h3 className="text-lg font-medium text-purple-400">{agent.name}</h3>
                   <p className="text-sm text-gray-400 leading-relaxed">
