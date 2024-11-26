@@ -24,31 +24,31 @@ export function AgentManagement({ agents, onExportData, onTerminateAgent }: Agen
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
   return (
-    <div className="p-4 space-y-4">
-      <h2 className="text-xl font-semibold mb-4 text-purple-400">Agent Management</h2>
+    <div className="p-6 space-y-6">
+      <h2 className="text-2xl font-semibold mb-6 text-purple-400">Agent Management</h2>
       
-      <ScrollArea className="h-[400px] overflow-y-auto">
-        <div className="space-y-4">
+      <ScrollArea className="h-[600px] overflow-y-auto pr-4">
+        <div className="space-y-6">
           {agents?.map((agent) => (
             <Card 
               key={agent.id}
               className={cn(
-                "p-4 bg-gray-900/50 border-purple-500/30 mb-4",
+                "p-6 bg-gray-900/50 border-purple-500/30 mb-4",
                 "hover:bg-gray-800/50 cursor-pointer",
-                "overflow-hidden",
+                "overflow-visible transition-all duration-200",
                 selectedAgent === agent.id ? 'ring-2 ring-purple-500' : ''
               )}
               onClick={() => setSelectedAgent(agent.id)}
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-2 flex-1 min-w-0">
-                  <h3 className="font-medium text-purple-400 truncate">{agent.name}</h3>
-                  <p className="text-sm text-gray-500 truncate max-w-[200px]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                <div className="space-y-3 flex-1 min-w-0">
+                  <h3 className="text-lg font-medium text-purple-400">{agent.name}</h3>
+                  <p className="text-sm text-gray-400 leading-relaxed">
                     {agent.description}
                   </p>
                   {agent.currentTask && (
-                    <p className="text-sm text-gray-500 truncate max-w-[200px]">
-                      <span className="font-medium">Current:</span> {agent.currentTask}
+                    <p className="text-sm text-gray-400">
+                      <span className="font-medium text-purple-400">Current:</span> {agent.currentTask}
                     </p>
                   )}
                 </div>

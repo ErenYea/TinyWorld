@@ -33,51 +33,56 @@ export default function SimulationDashboard() {
           AI Mission Control
         </h1>
         
-        <div className="grid grid-cols-12 gap-4">
-          {/* Left Column */}
-          <div className="col-span-3 space-y-4">
-            <Card className="p-4 bg-gray-900/50 border-purple-500/30">
+        <div className="grid grid-cols-12 gap-6">
+          {/* Left Column - Wider */}
+          <div className="col-span-4 space-y-6">
+            <Card className="p-6 bg-gray-900/50 border-purple-500/30">
               <WorldContextConfig onUpdate={updateWorldContext} />
             </Card>
 
-            <Card className="p-4 bg-gray-900/50 border-purple-500/30">
+            <Card className="p-6 bg-gray-900/50 border-purple-500/30">
               <AgentDeployment onDeploy={deployAgent} />
             </Card>
 
-            <Card className="p-4 bg-gray-900/50 border-purple-500/30">
+            <Card className="p-6 bg-gray-900/50 border-purple-500/30">
               <AgentManagement 
                 agents={agents || []}
                 onExportData={exportAgentData}
                 onTerminateAgent={terminateAgent}
               />
             </Card>
-            
-            <Card className="p-4 bg-gray-900/50 border-purple-500/30">
-              <ControlPanel 
-                status={simulationStatus}
-                wsStatus={wsStatus}
-                onStart={startSimulation}
-                onPause={pauseSimulation}
-                onReset={resetSimulation}
-              />
-            </Card>
-
-            <MetricsPanel metrics={metrics} />
           </div>
 
-          {/* Center Column */}
-          <div className="col-span-6">
-            <Card className="p-4 h-[600px] bg-gray-900/50 border-purple-500/30 relative overflow-hidden">
-              <NodeGraph agents={agents} />
-              {simulationStatus === 'running' && (
-                <MatrixAnimation className="absolute inset-0 opacity-20 pointer-events-none" />
-              )}
-            </Card>
+          {/* Center Column - Main visualization */}
+          <div className="col-span-8">
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                <Card className="p-6 bg-gray-900/50 border-purple-500/30">
+                  <ControlPanel 
+                    status={simulationStatus}
+                    wsStatus={wsStatus}
+                    onStart={startSimulation}
+                    onPause={pauseSimulation}
+                    onReset={resetSimulation}
+                  />
+                </Card>
+                <Card className="p-6 bg-gray-900/50 border-purple-500/30">
+                  <MetricsPanel metrics={metrics} />
+                </Card>
+              </div>
+
+              <Card className="p-6 h-[600px] bg-gray-900/50 border-purple-500/30 relative overflow-hidden">
+                <NodeGraph agents={agents} />
+                {simulationStatus === 'running' && (
+                  <MatrixAnimation className="absolute inset-0 opacity-20 pointer-events-none" />
+                )}
+              </Card>
+            </div>
           </div>
 
-          {/* Right Column */}
-          <div className="col-span-3">
-            <Card className="p-4 h-[600px] bg-gray-900/50 border-purple-500/30">
+          {/* Bottom Section - Full Width Logs */}
+          <div className="col-span-12">
+            <Card className="p-6 h-[400px] bg-gray-900/50 border-purple-500/30">
               <LogViewer logs={logs} />
             </Card>
           </div>

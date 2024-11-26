@@ -47,14 +47,14 @@ export function MetricsPanel({ metrics }: MetricsPanelProps) {
   }, [metrics]);
 
   return (
-    <Card className="p-4 bg-gray-900/50 border-purple-500/30">
-      <h2 className="text-xl font-semibold mb-4 text-purple-400">Performance Metrics</h2>
+    <Card className="p-6 bg-gray-900/50 border-purple-500/30">
+      <h2 className="text-2xl font-semibold mb-6 text-purple-400">Performance Metrics</h2>
       
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Active Agents Chart */}
         <div>
-          <h3 className="text-sm font-medium mb-2">Active Agents</h3>
-          <div className="h-[100px] w-full">
+          <h3 className="text-base font-medium mb-4">Active Agents</h3>
+          <div className="h-[150px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={timeSeriesData}>
                 <defs>
