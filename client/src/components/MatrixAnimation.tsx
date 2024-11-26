@@ -39,6 +39,11 @@ export function MatrixAnimation({ className = '' }: MatrixAnimationProps) {
     window.addEventListener('resize', handleResize);
 
     function draw() {
+      if (!canvas) {
+        console.warn('Canvas not available');
+        return;
+      }
+
       const width = canvas.width;
       const height = canvas.height;
 

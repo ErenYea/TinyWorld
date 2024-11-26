@@ -239,7 +239,7 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
         nodeTypes={nodeTypes}
         fitView
         draggable={true}
-        selectionMode={SelectionMode.None}
+        selectionMode={SelectionMode.Partial}
         selectNodesOnDrag={false}
         className="nodrag"
         minZoom={0.5}

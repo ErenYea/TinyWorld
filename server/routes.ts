@@ -12,13 +12,37 @@ interface CustomWebSocket extends WebSocket {
 }
 
 export function registerRoutes(app: Express, server: Server) {
-  // Initialize WebSocket server with more detailed logging
+  // Initialize WebSocket server with enhanced logging and error handling
   const wss = new WebSocketServer({ 
     server,
     path: '/ws',
     perMessageDeflate: false,
     clientTracking: true,
+    // Add WebSocket server options
+    backlog: 100,
+    maxPayload: 50 * 1024 * 1024, // 50MB max payload
   });
+
+  // Add server-level error handling
+  wss.on('error', (error) => {
+    console.error('[WebSocket] Server encountered an error:', error);
+  });
+
+  // Track clients and handle cleanup
+  const clients = new Set<WebSocket>();
+  
+  // Periodic cleanup of dead connections
+  const cleanupInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      const client = ws as CustomWebSocket;
+      if (!client.isAlive) {
+        console.log('[WebSocket] Terminating inactive client');
+        return client.terminate();
+      }
+      client.isAlive = false;
+      client.ping();
+    });
+  }, 30000);
 
   // Log WebSocket server events
   wss.on('listening', () => {

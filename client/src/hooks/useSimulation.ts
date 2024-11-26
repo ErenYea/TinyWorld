@@ -41,7 +41,7 @@ export function useSimulation() {
   });
   const [simulationStatus, setSimulationStatus] = useState<'idle' | 'running' | 'paused'>('idle');
   
-  const { socket, status: wsStatus } = useWebSocket(`ws://${window.location.hostname}:5000/ws`);
+  const { socket, status: wsStatus } = useWebSocket(`ws://${window.location.host}/ws`);
   const { toast } = useToast();
 
   useEffect(() => {
