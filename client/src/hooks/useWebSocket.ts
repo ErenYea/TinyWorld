@@ -14,9 +14,15 @@ export function useWebSocket(url: string) {
   });
   const socket = useRef<WebSocket | null>(null);
   const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = 5; // Reduced from 10 to 5 for Replit environment
+  const maxReconnectAttempts = 3; // Reduced to 3 for Replit environment
   const heartbeatInterval = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
+
+  // Function to construct WebSocket URL with proper protocol
+  const getWebSocketUrl = (baseUrl: string) => {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${wsProtocol}//${window.location.host}/ws`;
+  };
 
   const updateStatus = (update: Partial<WebSocketStatus>) => {
     setStatus(prev => ({ ...prev, ...update }));
@@ -24,8 +30,10 @@ export function useWebSocket(url: string) {
   };
 
   const calculateBackoff = (attempt: number) => {
-    // Shorter backoff times for Replit: 0.5s, 1s, 2s, 4s, max 8s
-    return Math.min(500 * Math.pow(2, attempt), 8000);
+    // Even shorter backoff times for Replit: 0.25s, 0.5s, 1s
+    const baseDelay = 250; // Start with 250ms
+    const maxDelay = 1000; // Max delay of 1s
+    return Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
   };
 
   useEffect(() => {

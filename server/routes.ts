@@ -18,9 +18,30 @@ export function registerRoutes(app: Express, server: Server) {
     path: '/ws',
     perMessageDeflate: false,
     clientTracking: true,
-    // Add WebSocket server options
-    backlog: 100,
-    maxPayload: 50 * 1024 * 1024, // 50MB max payload
+    // Enhanced WebSocket server options
+    backlog: 50, // Reduced for Replit environment
+    maxPayload: 1024 * 1024, // 1MB max payload
+    verifyClient: (info, callback) => {
+      const clientIp = info.req.socket.remoteAddress;
+      console.log(`[WebSocket] New connection attempt from: ${clientIp}`);
+      callback(true);
+    }
+  });
+
+  // Enhanced error handling at server level
+  wss.on('error', (error) => {
+    console.error('[WebSocket] Server error:', error);
+    // Attempt recovery
+    setTimeout(() => {
+      try {
+        wss.close(() => {
+          console.log('[WebSocket] Server closed for recovery');
+          // The server will be automatically reopened by the HTTP server
+        });
+      } catch (closeError) {
+        console.error('[WebSocket] Error during server recovery:', closeError);
+      }
+    }, 1000);
   });
 
   // Add server-level error handling
