@@ -176,14 +176,25 @@ export function registerRoutes(app: Express, server: Server) {
           break;
 
         case 'start':
-          await db.update(agents)
-            .set({ status: 'running' })
-            .where(eq(agents.status, 'idle'));
-          
-          broadcastToAll(wss, {
-            type: 'status',
-            payload: 'running'
-          });
+          try {
+            // Only update idle agents to running state
+            await db.update(agents)
+              .set({ status: 'running' })
+              .where(eq(agents.status, 'idle'));
+
+            // Start simulation loop
+            await simulationManager.startSimulationLoop();
+            
+            broadcastToAll(wss, {
+              type: 'status',
+              payload: 'running'
+            });
+
+            await broadcastSystemLog('info', 'Simulation started');
+          } catch (error: any) {
+            console.error('[WebSocket] Failed to start simulation:', error);
+            await broadcastSystemLog('error', `Failed to start simulation: ${error?.message || 'Unknown error'}`);
+          }
           break;
 
         case 'pause':

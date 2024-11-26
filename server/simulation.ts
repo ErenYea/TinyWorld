@@ -51,7 +51,6 @@ export class SimulationManager {
   }) {
     this.wss = wss;
     this.worldContext = context;
-    this.startSimulationLoop();
   }
 
   public updateWorldState(updates: Partial<Record<string, any>>) {
@@ -176,10 +175,21 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
     }
   }
 
-  private async startSimulationLoop() {
+  public async startSimulationLoop() {
     console.log('[SimulationManager] Starting simulation loop');
     
     try {
+      if (this.simulationStatus !== 'idle') {
+        console.log('[SimulationManager] Simulation is already running or paused');
+        return;
+      }
+
+      // Clear any existing interval
+      if (this.simulationInterval) {
+        clearInterval(this.simulationInterval);
+        this.simulationInterval = null;
+      }
+
       this.simulationStatus = 'running';
       
       // Update all idle agents to running state
@@ -347,26 +357,50 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
   }
 
   public async stop() {
+    if (this.simulationStatus !== 'running') {
+      console.log('[SimulationManager] Simulation is not running');
+      return;
+    }
+
+    console.log('[SimulationManager] Stopping simulation');
     this.simulationStatus = 'paused';
+
+    // Clear simulation interval
     if (this.simulationInterval) {
       clearInterval(this.simulationInterval);
       this.simulationInterval = null;
     }
 
-    // Clear all ongoing interactions
-    this.agentStates.clear();
-    
-    // Update all agents to paused state
-    await db.update(agents)
-      .set({ status: 'paused' });
+    try {
+      // Update all running agents to paused state
+      await db.update(agents)
+        .set({ status: 'paused' })
+        .where(eq(agents.status, 'running'));
+
+      // Clear all ongoing interactions and state
+      this.agentStates.clear();
       
-    // Reset metrics
-    this.metrics = {
-      totalInteractions: 0,
-      activeAgents: 0,
-      goalCompletionRate: 0,
-      averageProcessingTime: 0
-    };
+      // Log simulation pause
+      const log = await db.insert(simulationLogs)
+        .values({
+          type: 'info',
+          message: 'Simulation paused',
+        })
+        .returning();
+      
+      this.broadcastLog(log[0]);
+      
+      // Reset metrics
+      this.metrics = {
+        totalInteractions: 0,
+        activeAgents: 0,
+        goalCompletionRate: 0,
+        averageProcessingTime: 0
+      };
+    } catch (error) {
+      console.error('[SimulationManager] Error stopping simulation:', error);
+      throw error;
+    }
     
     // Broadcast updated status
     this.wss.clients.forEach((client) => {
