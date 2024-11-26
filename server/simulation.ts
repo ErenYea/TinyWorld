@@ -96,6 +96,10 @@ export class SimulationManager {
   }
 
   private async processAgentBehavior(agent: Agent, pattern: BehaviorPattern): Promise<string> {
+    if (this.simulationStatus !== 'running') {
+        return ''; // Don't process behaviors when not running
+    }
+    
     const claudeService = ClaudeService.getInstance();
     try {
       const currentMemory = agent.memory || {};
@@ -205,11 +209,11 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       }
 
       this.simulationInterval = setInterval(async () => {
-        try {
-          if (this.simulationStatus !== 'running') {
-            console.log('[SimulationManager] Simulation paused or stopped');
+        if (this.simulationStatus !== 'running') {
+            console.log('[SimulationManager] Simulation not running, skipping loop');
             return;
-          }
+        }
+        try {
 
           const runningAgents = await db.select()
             .from(agents)
@@ -355,55 +359,49 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
 
   public async stop() {
     if (this.simulationStatus !== 'running') {
-      console.log('[SimulationManager] Simulation is not running');
-      return;
+        console.log('[SimulationManager] Simulation is not running');
+        return;
     }
 
     console.log('[SimulationManager] Stopping simulation');
+    
+    // Set status first to prevent new interactions
     this.simulationStatus = 'paused';
-
-    // Clear simulation interval
-    if (this.simulationInterval) {
-      clearInterval(this.simulationInterval);
-      this.simulationInterval = null;
-    }
-
+    
     try {
-      // Update all running agents to paused state
-      await db.update(agents)
-        .set({ status: 'paused' })
-        .where(eq(agents.status, 'running'));
+        // Clear simulation interval
+        if (this.simulationInterval) {
+            clearInterval(this.simulationInterval);
+            this.simulationInterval = null;
+        }
 
-      // Clear all ongoing interactions and state
-      this.agentStates.clear();
-      
-      // Log simulation pause
-      const log = await db.insert(simulationLogs)
-        .values({
-          type: 'info',
-          message: 'Simulation paused',
-        })
-        .returning();
-      
-      this.broadcastLog(log[0]);
-      
-      // Reset metrics
-      this.metrics = {
-        totalInteractions: 0,
-        activeAgents: 0,
-        goalCompletionRate: 0,
-        averageProcessingTime: 0
-      };
+        // Update all running agents to paused state
+        await db.update(agents)
+            .set({ status: 'paused' })
+            .where(eq(agents.status, 'running'));
 
-      // Broadcast updated status
-      this.broadcastToAll({
-        type: 'status',
-        payload: 'paused'
-      });
+        // Clear all ongoing interactions and state
+        this.agentStates.clear();
+        
+        // Broadcast updated status
+        this.broadcastToAll({
+            type: 'status',
+            payload: 'paused'
+        });
+
+        // Log simulation pause
+        const log = await db.insert(simulationLogs)
+            .values({
+                type: 'info',
+                message: 'Simulation paused',
+            })
+            .returning();
+        
+        this.broadcastLog(log[0]);
+
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[SimulationManager] Error stopping simulation:', errorMessage);
-      throw error;
+        console.error('[SimulationManager] Error stopping simulation:', error);
+        throw error;
     }
   }
 
