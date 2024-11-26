@@ -17,10 +17,8 @@ export function MatrixAnimation({ className = '' }: MatrixAnimationProps) {
     const fontSize = 14;
     const chars = "01";
 
-    // Safe reference to context to avoid null checks
-    const ctx = context;
-
     const resizeCanvas = () => {
+      if (!canvas) return 0;
       const { offsetWidth, offsetHeight } = canvas;
       canvas.width = offsetWidth;
       canvas.height = offsetHeight;
@@ -39,7 +37,7 @@ export function MatrixAnimation({ className = '' }: MatrixAnimationProps) {
     window.addEventListener('resize', handleResize);
 
     function draw() {
-      if (!canvas || !ctx) {
+      if (!canvas || !context) {
         console.warn('Canvas or context not available');
         return;
       }
@@ -53,8 +51,7 @@ export function MatrixAnimation({ className = '' }: MatrixAnimationProps) {
       }
 
       try {
-        // Create fade effect with TypeScript type safety
-        const context = ctx;
+        // Create fade effect
         context.fillStyle = 'rgba(0, 0, 0, 0.05)';
         context.fillRect(0, 0, width, height);
 

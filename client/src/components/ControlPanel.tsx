@@ -24,8 +24,8 @@ export function ControlPanel({
         Simulation Controls
       </h2>
       
-      <div className="space-y-4">
-        <div className="space-y-2">
+      <div className="space-y-6">
+        <div className="space-y-4">
           <div className="flex items-center justify-between bg-gray-800 p-3 rounded-md">
             <span>Connection:</span>
             <div className="flex items-center gap-2">

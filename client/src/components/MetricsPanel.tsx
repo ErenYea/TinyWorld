@@ -54,7 +54,7 @@ export function MetricsPanel({ metrics }: MetricsPanelProps) {
         {/* Active Agents Chart */}
         <div>
           <h3 className="text-base font-medium mb-4">Active Agents</h3>
-          <div className="h-[150px] w-full">
+          <div className="h-[200px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={timeSeriesData}>
                 <defs>
@@ -113,8 +113,8 @@ export function MetricsPanel({ metrics }: MetricsPanelProps) {
         </div>
 
         {/* Performance Indicators */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-gray-800/50 p-3 rounded-lg border border-purple-500/30">
+        <div className="grid grid-cols-2 gap-6">
+          <div className="bg-gray-800/50 p-4 rounded-lg border border-purple-500/30">
             <div className="text-sm text-gray-400">Processing Time</div>
             <div className="text-xl font-semibold text-purple-400">
               {metrics.averageProcessingTime.toFixed(2)}ms

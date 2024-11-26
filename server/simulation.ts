@@ -1,8 +1,8 @@
 import { db } from "../db";
 import { agents, simulationLogs, agentInteractions } from "@db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { WebSocket, WebSocketServer } from "ws";
-import type { Log } from "@db/schema";
+import type { Log, Agent } from "@db/schema";
 import { ClaudeService } from "./services/claude";
 
 interface WorldContext {
@@ -61,12 +61,20 @@ export class SimulationManager {
     };
     
     // Broadcast world state update
-    this.wss.clients.forEach((client: WebSocket) => {
+    this.broadcastToAll({
+      type: 'worldState',
+      payload: this.worldContext
+    });
+  }
+
+  private broadcastToAll(data: any) {
+    this.wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({
-          type: 'worldState',
-          payload: this.worldContext
-        }));
+        try {
+          client.send(JSON.stringify(data));
+        } catch (error) {
+          console.error('Failed to broadcast to client:', error);
+        }
       }
     });
   }
@@ -87,7 +95,7 @@ export class SimulationManager {
     return 'LEARN';
   }
 
-  private async processAgentBehavior(agent: any, pattern: BehaviorPattern): Promise<string> {
+  private async processAgentBehavior(agent: Agent, pattern: BehaviorPattern): Promise<string> {
     const claudeService = ClaudeService.getInstance();
     try {
       const currentMemory = agent.memory || {};
@@ -125,7 +133,8 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
 
       return `[${pattern}] ${response}`;
     } catch (error) {
-      console.error('[SimulationManager] Error processing agent behavior:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[SimulationManager] Error processing agent behavior:', errorMessage);
       return `[${pattern}] Error processing behavior`;
     }
   }
@@ -139,17 +148,13 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
   }
 
   private broadcastMetrics() {
-    this.wss.clients.forEach((client: WebSocket) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({
-          type: 'metrics',
-          payload: this.metrics
-        }));
-      }
+    this.broadcastToAll({
+      type: 'metrics',
+      payload: this.metrics
     });
   }
 
-  private async updateAgentStatus(agentId: string, newStatus: 'idle' | 'running' | 'paused', errorHandler?: (error: any) => void) {
+  private async updateAgentStatus(agentId: string, newStatus: 'idle' | 'running' | 'paused') {
     try {
       await db.update(agents)
         .set({ status: newStatus })
@@ -167,10 +172,8 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       this.broadcastLog(log[0]);
       return true;
     } catch (error) {
-      console.error(`[SimulationManager] Failed to update agent status: ${error}`);
-      if (errorHandler) {
-        errorHandler(error);
-      }
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[SimulationManager] Failed to update agent status: ${errorMessage}`);
       return false;
     }
   }
@@ -214,71 +217,69 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
 
           console.log(`[SimulationManager] Processing ${runningAgents.length} running agents`);
 
-      // Update active agents count
-      this.updateMetrics(runningAgents.length);
+          // Update active agents count
+          this.updateMetrics(runningAgents.length);
 
-      for (const agent of runningAgents) {
-        try {
-          const startTime = Date.now();
-          
-          // Initialize or get agent state
-          if (!this.agentStates.has(agent.id)) {
-            this.agentStates.set(agent.id, {
-              id: agent.id,
-              currentTask: '',
-              interactionCount: 0,
-              lastInteractionTime: Date.now(),
-              processingTime: 0,
-              connections: new Set()
-            });
-          }
-
-          const pattern = this.determineBehaviorPattern(agent.goals);
-          const currentBehavior = await this.processAgentBehavior(agent, pattern);
-          
-          // Process interactions with other agents
-          for (const otherAgent of runningAgents) {
-            if (agent.id !== otherAgent.id && 
-                this.determineInteraction(agent.goals, otherAgent.goals)) {
+          for (const agent of runningAgents) {
+            try {
+              const startTime = Date.now();
               
+              // Initialize or get agent state
+              if (!this.agentStates.has(agent.id)) {
+                this.agentStates.set(agent.id, {
+                  id: agent.id,
+                  currentTask: '',
+                  interactionCount: 0,
+                  lastInteractionTime: Date.now(),
+                  processingTime: 0,
+                  connections: new Set()
+                });
+              }
+
+              const pattern = this.determineBehaviorPattern(agent.goals);
+              const currentBehavior = await this.processAgentBehavior(agent, pattern);
+              
+              // Process interactions with other agents
+              for (const otherAgent of runningAgents) {
+                if (agent.id !== otherAgent.id && 
+                    this.determineInteraction(agent.goals, otherAgent.goals)) {
+                  
+                  const agentState = this.agentStates.get(agent.id)!;
+                  agentState.connections.add(otherAgent.id);
+                  agentState.interactionCount++;
+                  this.metrics.totalInteractions++;
+
+                  // Log interaction
+                  const log = await db.insert(simulationLogs)
+                    .values({
+                      agentId: agent.id,
+                      type: 'interaction',
+                      message: `Agent ${agent.name} is interacting with ${otherAgent.name} - ${currentBehavior}`,
+                    })
+                    .returning();
+
+                  this.broadcastLog(log[0]);
+                }
+              }
+
+              // Update agent state
               const agentState = this.agentStates.get(agent.id)!;
-              agentState.connections.add(otherAgent.id);
-              agentState.interactionCount++;
-              this.metrics.totalInteractions++;
+              agentState.currentTask = currentBehavior;
+              agentState.processingTime = Date.now() - startTime;
 
-              // Log interaction
-              const log = await db.insert(simulationLogs)
-                .values({
-                  agentId: agent.id,
-                  type: 'interaction',
-                  message: `Agent ${agent.name} is interacting with ${otherAgent.name} - ${currentBehavior}`,
-                })
-                .returning();
+              // Verify agent is still in running state
+              const currentAgent = await db.select()
+                .from(agents)
+                .where(eq(agents.id, agent.id))
+                .limit(1);
 
-              this.broadcastLog(log[0]);
-            }
-          }
+              if (!currentAgent[0] || currentAgent[0].status !== 'running') {
+                console.log(`[SimulationManager] Agent ${agent.id} is no longer running, skipping updates`);
+                continue;
+              }
 
-          // Update agent state
-          const agentState = this.agentStates.get(agent.id)!;
-          agentState.currentTask = currentBehavior;
-          agentState.processingTime = Date.now() - startTime;
-
-          // Verify agent is still in running state
-          const currentAgent = await db.select()
-            .from(agents)
-            .where(eq(agents.id, agent.id))
-            .limit(1);
-
-          if (!currentAgent[0] || currentAgent[0].status !== 'running') {
-            console.log(`[SimulationManager] Agent ${agent.id} is no longer running, skipping updates`);
-            continue;
-          }
-
-          // Broadcast agent state
-          this.wss.clients.forEach((client: WebSocket) => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify({
+              // Broadcast agent state
+              this.broadcastToAll({
                 type: 'agentState',
                 payload: {
                   id: agent.id,
@@ -287,47 +288,52 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
                   currentTask: agentState.currentTask,
                   connections: Array.from(agentState.connections)
                 }
-              }));
+              });
+
+              // Log general behavior
+              const log = await db.insert(simulationLogs)
+                .values({
+                  agentId: agent.id,
+                  type: 'behavior',
+                  message: `Agent ${agent.name} - ${currentBehavior} while pursuing: ${agent.goals}`,
+                })
+                .returning();
+
+              this.broadcastLog(log[0]);
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              console.error(`[SimulationManager] Error processing agent ${agent.id}:`, errorMessage);
+              
+              // Log the error to simulation logs
+              const errorLog = await db.insert(simulationLogs)
+                .values({
+                  agentId: agent.id,
+                  type: 'error',
+                  message: `Error processing agent: ${errorMessage}`,
+                })
+                .returning();
+              
+              this.broadcastLog(errorLog[0]);
             }
-          });
-
-          // Log general behavior
-          const log = await db.insert(simulationLogs)
-            .values({
-              agentId: agent.id,
-              type: 'behavior',
-              message: `Agent ${agent.name} - ${currentBehavior} while pursuing: ${agent.goals}`,
-            })
-            .returning();
-
-          this.broadcastLog(log[0]);
+          }
         } catch (error) {
-          console.error(`[SimulationManager] Error processing agent ${agent.id}:`, error);
-          // Log the error to simulation logs
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error('[SimulationManager] Error in simulation loop:', errorMessage);
+          
+          // Log the error to the simulation logs
           const errorLog = await db.insert(simulationLogs)
             .values({
-              agentId: agent.id,
               type: 'error',
-              message: `Error processing agent: ${error.message}`,
+              message: `Simulation error: ${errorMessage}`,
             })
             .returning();
+          
           this.broadcastLog(errorLog[0]);
         }
-      }
+      }, 2000);
     } catch (error) {
-      console.error('[SimulationManager] Error in simulation loop:', error);
-      // Log the error to the simulation logs
-      const errorLog = await db.insert(simulationLogs)
-        .values({
-          type: 'error',
-          message: `Simulation error: ${error.message}`,
-        })
-        .returning();
-      this.broadcastLog(errorLog[0]);
-    }
-  }, 2000);
-    } catch (error) {
-      console.error('[SimulationManager] Failed to start simulation:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[SimulationManager] Failed to start simulation:', errorMessage);
       throw error;
     }
   }
@@ -341,18 +347,9 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       timestamp: log.timestamp ? new Date(log.timestamp).toISOString() : new Date().toISOString()
     };
 
-    this.wss.clients.forEach((client: WebSocket) => {
-      if (client.readyState === WebSocket.OPEN) {
-        try {
-          client.send(JSON.stringify({
-            type: 'log',
-            payload: formattedLog
-          }));
-          console.log(`[SimulationManager] Log broadcast successful`);
-        } catch (error) {
-          console.error('[SimulationManager] Failed to broadcast log:', error);
-        }
-      }
+    this.broadcastToAll({
+      type: 'log',
+      payload: formattedLog
     });
   }
 
@@ -397,20 +394,17 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
         goalCompletionRate: 0,
         averageProcessingTime: 0
       };
+
+      // Broadcast updated status
+      this.broadcastToAll({
+        type: 'status',
+        payload: 'paused'
+      });
     } catch (error) {
-      console.error('[SimulationManager] Error stopping simulation:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[SimulationManager] Error stopping simulation:', errorMessage);
       throw error;
     }
-    
-    // Broadcast updated status
-    this.wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({
-          type: 'status',
-          payload: 'paused'
-        }));
-      }
-    });
   }
 
   public async exportAgentData(agentId: string) {
@@ -428,10 +422,10 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       const interactions = await db.select()
         .from(agentInteractions)
         .where(
-          or(
+          or([
             eq(agentInteractions.sourceAgentId, agentId),
             eq(agentInteractions.targetAgentId, agentId)
-          )
+          ])
         );
 
       // Get agent logs
@@ -447,18 +441,15 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       };
 
       // Broadcast export data
-      this.wss.clients.forEach((client: WebSocket) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            type: 'agentExport',
-            payload: exportData
-          }));
-        }
+      this.broadcastToAll({
+        type: 'agentExport',
+        payload: exportData
       });
 
       return exportData;
     } catch (error) {
-      console.error('[SimulationManager] Error exporting agent data:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[SimulationManager] Error exporting agent data:', errorMessage);
       throw error;
     }
   }
@@ -469,10 +460,10 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       const logs = await db.select()
         .from(simulationLogs)
         .where(
-          and(
-            eq(simulationLogs.type, 'interaction'),
+          and([
+            eq(simulationLogs.type, 'interaction')
             // Add more specific conditions based on query
-          )
+          ])
         );
 
       // Use Claude to analyze the logs
@@ -482,15 +473,27 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
         ${logs.map(log => `${log.timestamp}: ${log.message}`).join('\n')}
       `;
 
+      const analysisAgent: Agent = {
+        id: 'analysis-agent',
+        name: 'LogAnalyzer',
+        description: 'Analysis agent',
+        goals: query,
+        status: 'idle',
+        metadata: {},
+        memory: {},
+        createdAt: new Date()
+      };
+
       const { response } = await claudeService.generateResponse(
-        { name: 'LogAnalyzer', description: 'Analysis agent', goals: query },
+        analysisAgent,
         analysisPrompt,
         {}
       );
 
       return response;
     } catch (error) {
-      console.error('[SimulationManager] Error analyzing discussion:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[SimulationManager] Error analyzing discussion:', errorMessage);
       throw error;
     }
   }
@@ -506,8 +509,19 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
         })
         .where(eq(agents.id, agentId));
 
-      // Remove from active states
-      this.agentStates.delete(agentId);
+      // Get current agent state
+      const currentState = this.agentStates.get(agentId);
+      
+      if (currentState) {
+        // Remove connections to this agent from other agents
+        for (const [otherAgentId, state] of this.agentStates.entries()) {
+          if (state.connections.has(agentId)) {
+            state.connections.delete(agentId);
+          }
+        }
+        // Remove from active states
+        this.agentStates.delete(agentId);
+      }
 
       // Log termination
       const log = await db.insert(simulationLogs)
@@ -525,58 +539,14 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
 
       // Broadcast updated agent list
       const updatedAgents = await db.select().from(agents);
-      this.wss.clients.forEach((client: WebSocket) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            type: 'agents',
-            payload: updatedAgents
-          }));
-        }
+      this.broadcastToAll({
+        type: 'agents',
+        payload: updatedAgents
       });
     } catch (error) {
-      console.error('[SimulationManager] Error terminating agent:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[SimulationManager] Error terminating agent:', errorMessage);
       throw error;
     }
-  }
-
-  public async reset() {
-    this.simulationStatus = 'idle';
-    if (this.simulationInterval) {
-      clearInterval(this.simulationInterval);
-      this.simulationInterval = null;
-    }
-
-    // Clear all agent states and connections
-    this.agentStates.clear();
-    
-    // Reset all agents to idle state and clear their memory
-    await db.update(agents)
-      .set({ 
-        status: 'idle',
-        memory: {},
-        metadata: {}
-      });
-      
-    // Reset metrics
-    this.metrics = {
-      totalInteractions: 0,
-      activeAgents: 0,
-      goalCompletionRate: 0,
-      averageProcessingTime: 0
-    };
-    
-    // Broadcast reset status and metrics
-    this.wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({
-          type: 'status',
-          payload: 'idle'
-        }));
-        client.send(JSON.stringify({
-          type: 'metrics',
-          payload: this.metrics
-        }));
-      }
-    });
   }
 }
