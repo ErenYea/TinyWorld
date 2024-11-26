@@ -24,16 +24,16 @@ export function AgentManagement({ agents, onExportData, onTerminateAgent }: Agen
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="p-4 space-y-4">
       <h2 className="text-xl font-semibold mb-4 text-purple-400">Agent Management</h2>
       
-      <ScrollArea className="flex-1 min-h-0 max-h-[calc(100vh-20rem)] pr-4">
+      <ScrollArea className="h-[400px] overflow-y-auto">
         <div className="space-y-4">
           {agents?.map((agent) => (
             <Card 
               key={agent.id}
               className={cn(
-                "p-4 bg-gray-900/50 border-purple-500/30 transition-all duration-200",
+                "p-4 bg-gray-900/50 border-purple-500/30 mb-4",
                 "hover:bg-gray-800/50 cursor-pointer",
                 "overflow-hidden",
                 selectedAgent === agent.id ? 'ring-2 ring-purple-500' : ''
@@ -43,11 +43,11 @@ export function AgentManagement({ agents, onExportData, onTerminateAgent }: Agen
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-2 flex-1 min-w-0">
                   <h3 className="font-medium text-purple-400 truncate">{agent.name}</h3>
-                  <p className="text-sm text-gray-400 line-clamp-2">
+                  <p className="text-sm text-gray-500 truncate max-w-[200px]">
                     {agent.description}
                   </p>
                   {agent.currentTask && (
-                    <p className="text-sm text-gray-500 truncate">
+                    <p className="text-sm text-gray-500 truncate max-w-[200px]">
                       <span className="font-medium">Current:</span> {agent.currentTask}
                     </p>
                   )}
@@ -91,7 +91,7 @@ export function AgentManagement({ agents, onExportData, onTerminateAgent }: Agen
                   {agent.status.toUpperCase()}
                 </span>
                 {agent.goals && (
-                  <span className="text-xs text-gray-500 truncate max-w-full">
+                  <span className="text-xs text-gray-500 truncate max-w-[200px]">
                     <span className="font-medium">Goals:</span> {agent.goals}
                   </span>
                 )}
