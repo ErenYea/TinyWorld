@@ -44,7 +44,7 @@ Respond in character as the AI agent, considering your goals and previous contex
         }]
       });
 
-      const messageContent = response.content[0].text || '';
+      const messageContent = response.content[0].type === 'text' ? response.content[0].text : '';
 
       // Update memory with new interaction
       const updatedMemory = {

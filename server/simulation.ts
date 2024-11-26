@@ -150,94 +150,176 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
     });
   }
 
+  private async updateAgentStatus(agentId: string, newStatus: 'idle' | 'running' | 'paused', errorHandler?: (error: any) => void) {
+    try {
+      await db.update(agents)
+        .set({ status: newStatus })
+        .where(eq(agents.id, agentId));
+
+      // Log status change
+      const log = await db.insert(simulationLogs)
+        .values({
+          agentId,
+          type: 'info',
+          message: `Agent status changed to ${newStatus}`,
+        })
+        .returning();
+
+      this.broadcastLog(log[0]);
+      return true;
+    } catch (error) {
+      console.error(`[SimulationManager] Failed to update agent status: ${error}`);
+      if (errorHandler) {
+        errorHandler(error);
+      }
+      return false;
+    }
+  }
+
   private async startSimulationLoop() {
-    this.simulationStatus = 'running';
-    this.simulationInterval = setInterval(async () => {
-      if (this.simulationStatus !== 'running') {
-        return;
+    console.log('[SimulationManager] Starting simulation loop');
+    
+    try {
+      this.simulationStatus = 'running';
+      
+      // Update all idle agents to running state
+      const idleAgents = await db.select()
+        .from(agents)
+        .where(eq(agents.status, 'idle'));
+      
+      for (const agent of idleAgents) {
+        await this.updateAgentStatus(agent.id, 'running');
       }
 
-      const runningAgents = await db.select()
-        .from(agents)
-        .where(eq(agents.status, 'running'));
+      this.simulationInterval = setInterval(async () => {
+        try {
+          if (this.simulationStatus !== 'running') {
+            console.log('[SimulationManager] Simulation paused or stopped');
+            return;
+          }
+
+          const runningAgents = await db.select()
+            .from(agents)
+            .where(eq(agents.status, 'running'));
+
+          console.log(`[SimulationManager] Processing ${runningAgents.length} running agents`);
 
       // Update active agents count
       this.updateMetrics(runningAgents.length);
 
       for (const agent of runningAgents) {
-        const startTime = Date.now();
-        
-        // Initialize or get agent state
-        if (!this.agentStates.has(agent.id)) {
-          this.agentStates.set(agent.id, {
-            id: agent.id,
-            currentTask: '',
-            interactionCount: 0,
-            lastInteractionTime: Date.now(),
-            processingTime: 0,
-            connections: new Set()
+        try {
+          const startTime = Date.now();
+          
+          // Initialize or get agent state
+          if (!this.agentStates.has(agent.id)) {
+            this.agentStates.set(agent.id, {
+              id: agent.id,
+              currentTask: '',
+              interactionCount: 0,
+              lastInteractionTime: Date.now(),
+              processingTime: 0,
+              connections: new Set()
+            });
+          }
+
+          const pattern = this.determineBehaviorPattern(agent.goals);
+          const currentBehavior = await this.processAgentBehavior(agent, pattern);
+          
+          // Process interactions with other agents
+          for (const otherAgent of runningAgents) {
+            if (agent.id !== otherAgent.id && 
+                this.determineInteraction(agent.goals, otherAgent.goals)) {
+              
+              const agentState = this.agentStates.get(agent.id)!;
+              agentState.connections.add(otherAgent.id);
+              agentState.interactionCount++;
+              this.metrics.totalInteractions++;
+
+              // Log interaction
+              const log = await db.insert(simulationLogs)
+                .values({
+                  agentId: agent.id,
+                  type: 'interaction',
+                  message: `Agent ${agent.name} is interacting with ${otherAgent.name} - ${currentBehavior}`,
+                })
+                .returning();
+
+              this.broadcastLog(log[0]);
+            }
+          }
+
+          // Update agent state
+          const agentState = this.agentStates.get(agent.id)!;
+          agentState.currentTask = currentBehavior;
+          agentState.processingTime = Date.now() - startTime;
+
+          // Verify agent is still in running state
+          const currentAgent = await db.select()
+            .from(agents)
+            .where(eq(agents.id, agent.id))
+            .limit(1);
+
+          if (!currentAgent[0] || currentAgent[0].status !== 'running') {
+            console.log(`[SimulationManager] Agent ${agent.id} is no longer running, skipping updates`);
+            continue;
+          }
+
+          // Broadcast agent state
+          this.wss.clients.forEach((client: WebSocket) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: 'agentState',
+                payload: {
+                  id: agent.id,
+                  name: agent.name,
+                  status: agent.status,
+                  currentTask: agentState.currentTask,
+                  connections: Array.from(agentState.connections)
+                }
+              }));
+            }
           });
+
+          // Log general behavior
+          const log = await db.insert(simulationLogs)
+            .values({
+              agentId: agent.id,
+              type: 'behavior',
+              message: `Agent ${agent.name} - ${currentBehavior} while pursuing: ${agent.goals}`,
+            })
+            .returning();
+
+          this.broadcastLog(log[0]);
+        } catch (error) {
+          console.error(`[SimulationManager] Error processing agent ${agent.id}:`, error);
+          // Log the error to simulation logs
+          const errorLog = await db.insert(simulationLogs)
+            .values({
+              agentId: agent.id,
+              type: 'error',
+              message: `Error processing agent: ${error.message}`,
+            })
+            .returning();
+          this.broadcastLog(errorLog[0]);
         }
-
-        const pattern = this.determineBehaviorPattern(agent.goals);
-        const currentBehavior = await this.processAgentBehavior(agent, pattern);
-        
-        // Process interactions with other agents
-        for (const otherAgent of runningAgents) {
-          if (agent.id !== otherAgent.id && 
-              this.determineInteraction(agent.goals, otherAgent.goals)) {
-            
-            const agentState = this.agentStates.get(agent.id)!;
-            agentState.connections.add(otherAgent.id);
-            agentState.interactionCount++;
-            this.metrics.totalInteractions++;
-
-            // Log interaction
-            const log = await db.insert(simulationLogs)
-              .values({
-                agentId: agent.id,
-                type: 'interaction',
-                message: `Agent ${agent.name} is interacting with ${otherAgent.name} - ${currentBehavior}`,
-              })
-              .returning();
-
-            this.broadcastLog(log[0]);
-          }
-        }
-
-        // Update agent state
-        const agentState = this.agentStates.get(agent.id)!;
-        agentState.currentTask = currentBehavior;
-        agentState.processingTime = Date.now() - startTime;
-
-        // Broadcast agent state
-        this.wss.clients.forEach((client: WebSocket) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: 'agentState',
-              payload: {
-                id: agent.id,
-                name: agent.name,
-                status: agent.status,
-                currentTask: agentState.currentTask,
-                connections: Array.from(agentState.connections)
-              }
-            }));
-          }
-        });
-
-        // Log general behavior
-        const log = await db.insert(simulationLogs)
-          .values({
-            agentId: agent.id,
-            type: 'behavior',
-            message: `Agent ${agent.name} - ${currentBehavior} while pursuing: ${agent.goals}`,
-          })
-          .returning();
-
-        this.broadcastLog(log[0]);
       }
-    }, 2000);
+    } catch (error) {
+      console.error('[SimulationManager] Error in simulation loop:', error);
+      // Log the error to the simulation logs
+      const errorLog = await db.insert(simulationLogs)
+        .values({
+          type: 'error',
+          message: `Simulation error: ${error.message}`,
+        })
+        .returning();
+      this.broadcastLog(errorLog[0]);
+    }
+  }, 2000);
+    } catch (error) {
+      console.error('[SimulationManager] Failed to start simulation:', error);
+      throw error;
+    }
   }
 
   private broadcastLog(log: Log) {
