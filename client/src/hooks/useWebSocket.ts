@@ -34,12 +34,10 @@ export function useWebSocket(url: string) {
         // Initial delay reduced for faster reconnection
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        const wsUrl = window.location.protocol === 'https:' 
-          ? `wss://${window.location.hostname}/ws`
-          : `ws://${window.location.hostname}:${window.location.port || '5000'}/ws`;
-        console.log('[WebSocket] Connecting to:', wsUrl);
+        // Use the provided URL directly instead of constructing it
+        console.log('[WebSocket] Connecting to:', url);
         
-        const ws = new WebSocket(wsUrl);
+        const ws = new WebSocket(url);
         socket.current = ws;
 
         // Setup heartbeat ping

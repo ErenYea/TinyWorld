@@ -9,8 +9,8 @@ import ReactFlow, {
   useEdgesState,
   Handle,
   Position as FlowPosition,
-  ConnectionMode,
   SelectionMode,
+  ConnectionMode,
 } from 'reactflow';
 import { ErrorBoundary } from './ErrorBoundary';
 import 'reactflow/dist/style.css';
@@ -38,55 +38,77 @@ interface NodeData {
   lastInteraction?: string;
 }
 
-const CustomNode = ({ data }: { data: NodeData }) => (
-  <div 
-    className="text-center group relative cursor-pointer"
-    title={data.description}
-  >
-    <Handle type="target" position={FlowPosition.Top} id="target" className="!bg-purple-400" />
-    <div className="node-enter">
-      <div className="font-semibold">{data.label}</div>
-      {data.task && (
-        <div className="text-sm text-gray-400 mt-1 max-w-[200px] truncate">
-          {data.task}
-        </div>
-      )}
-      <div className={`text-xs mt-1 ${
-        data.status === 'running' ? 'text-green-400' :
-        data.status === 'paused' ? 'text-yellow-400' :
-        'text-gray-400'
+const CustomNode = ({ data }: { data: NodeData }) => {
+  const [expanded, setExpanded] = useState(false);
+  
+  return (
+    <div 
+      className={`text-center group relative cursor-pointer transition-all duration-300 ${
+        expanded ? 'node-expanded' : ''
+      }`}
+      onClick={() => setExpanded(!expanded)}
+      title={data.description}
+    >
+      <Handle type="target" position={FlowPosition.Top} id="target" className="!bg-purple-400" />
+      <div className={`node-enter bg-gray-900/90 p-4 rounded-lg border-2 ${
+        data.status === 'running' ? 'border-green-400/50 animate-pulse' :
+        data.status === 'paused' ? 'border-yellow-400/50' :
+        'border-gray-400/50'
       }`}>
-        {data.status.toUpperCase()}
-      </div>
-      <div className="mt-2">
-        {data.interactionCount !== undefined && (
-          <div className="text-xs text-purple-400">
-            Interactions: {data.interactionCount}
+        <div className="font-semibold text-white">{data.label}</div>
+        {data.task && (
+          <div className="text-sm text-gray-300 mt-1 max-w-[200px] truncate">
+            {data.task}
           </div>
         )}
-        {data.lastInteraction && (
-          <div className="text-xs text-gray-400">
-            Last: {data.lastInteraction}
-          </div>
-        )}
+        <div className={`text-xs mt-1 ${
+          data.status === 'running' ? 'text-green-400' :
+          data.status === 'paused' ? 'text-yellow-400' :
+          'text-gray-400'
+        }`}>
+          {data.status.toUpperCase()}
+        </div>
+        <div className="mt-2">
+          {data.interactionCount !== undefined && (
+            <div className="text-xs text-purple-400">
+              Interactions: {data.interactionCount}
+            </div>
+          )}
+          {data.lastInteraction && (
+            <div className="text-xs text-gray-400">
+              Last: {data.lastInteraction}
+            </div>
+          )}
+        </div>
       </div>
-      <div className="absolute hidden group-hover:block bg-gray-900/95 text-white p-3 rounded-md shadow-lg z-50 w-64 -translate-x-1/2 left-1/2 mt-2">
-        <p className="text-sm font-medium mb-2">{data.description}</p>
-        {data.task && <p className="text-xs text-gray-300">Current Task: {data.task}</p>}
+      
+      {/* Improved tooltip with animation and better visibility */}
+      <div className="absolute opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-900/95 text-white p-4 rounded-lg shadow-xl z-50 w-72 -translate-x-1/2 left-1/2 mt-3 border border-purple-500/30">
+        <div className="relative">
+          <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-gray-900/95 border-t border-l border-purple-500/30"></div>
+          <p className="text-sm font-medium mb-2 text-purple-400">{data.description}</p>
+          {data.task && (
+            <div className="mt-2 pt-2 border-t border-purple-500/30">
+              <p className="text-xs text-gray-300">Current Task:</p>
+              <p className="text-sm text-white">{data.task}</p>
+            </div>
+          )}
+        </div>
       </div>
+      
+      <Handle type="source" position={FlowPosition.Bottom} id="source" className="!bg-purple-400" />
     </div>
-    <Handle type="source" position={FlowPosition.Bottom} id="source" className="!bg-purple-400" />
-  </div>
-);
+  );
+};
 
 // Define types at the top level
 type Position = { x: number; y: number };
 type NodePositions = Map<string, Position>;
 
 // Initialize node types at the top level
-const nodeTypes: Record<string, React.FC<any>> = {
+const nodeTypes = {
   default: CustomNode,
-};
+} as const;
 
 // Initialize positions Map
 const initialPositions: NodePositions = new Map();
@@ -126,7 +148,7 @@ const getNodeStyle = (status: string) => {
 
 function NodeGraphContent({ agents }: NodeGraphProps) {
   if (!agents) {
-    return <div>No agents available</div>;
+    return <div className="flex items-center justify-center h-full text-gray-400">No agents available</div>;
   }
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -162,7 +184,12 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
         status: agent.status,
         description: agent.description || 'No description available',
       },
-      style: getNodeStyle(agent.status),
+      style: {
+        ...getNodeStyle(agent.status),
+        transition: 'all 0.3s ease-in-out',
+        opacity: 1,
+        transform: 'scale(1)',
+      },
     }));
 
     // Create edges based on agent connections
@@ -176,11 +203,14 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
         animated: agent.status === 'running',
         type: 'smoothstep',
         style: { 
-          stroke: '#a855f7', 
-          strokeWidth: 2, 
-          opacity: 0.5,
-          strokeDasharray: '5 5',
+          stroke: agent.status === 'running' ? '#a855f7' : '#666',
+          strokeWidth: agent.status === 'running' ? 3 : 2,
+          opacity: agent.status === 'running' ? 0.8 : 0.4,
+          strokeDasharray: agent.status === 'running' ? '8 8' : '5 5',
+          filter: agent.status === 'running' ? 'drop-shadow(0 0 8px rgba(168, 85, 247, 0.5))' : 'none',
+          transition: 'all 0.3s ease-in-out',
         },
+        className: agent.status === 'running' ? 'edge-particle' : '',
         label: 'Interacting',
         labelStyle: { 
           fill: '#a855f7', 
@@ -228,11 +258,22 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
 }
 
 // Export the component directly with ErrorBoundary
-export function NodeGraph(props: NodeGraphProps) {
+export function NodeGraph({ agents }: NodeGraphProps) {
+  console.log('[NodeGraph] Mounting component with agents:', agents?.length ?? 0);
+  
   return (
     <ErrorBoundary>
-      <div className="h-full w-full">
-        <NodeGraphContent {...props} />
+      <div className="h-full w-full relative bg-black/50">
+        {agents && agents.length > 0 ? (
+          <NodeGraphContent agents={agents} />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+            <div className="text-center">
+              <p className="mb-4">No agents deployed</p>
+              <p className="text-sm">Deploy agents using the panel on the left to start the simulation</p>
+            </div>
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   );

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import {
   LineChart,
@@ -22,11 +23,28 @@ interface MetricsPanelProps {
 
 export function MetricsPanel({ metrics }: MetricsPanelProps) {
   // Create time-series data for the charts
-  const timeSeriesData = [
-    { time: '1m', interactions: metrics.totalInteractions, agents: metrics.activeAgents },
-    { time: '2m', interactions: metrics.totalInteractions + 5, agents: metrics.activeAgents + 1 },
-    { time: '3m', interactions: metrics.totalInteractions + 10, agents: metrics.activeAgents + 2 },
-  ];
+  interface TimeSeriesDataPoint {
+    time: string;
+    interactions: number;
+    agents: number;
+    processingTime: number;
+    completion: number;
+  }
+
+  const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesDataPoint[]>([]);
+  
+  useEffect(() => {
+    setTimeSeriesData(prev => {
+      const newData = [...prev, {
+        time: new Date().toLocaleTimeString(),
+        interactions: metrics.totalInteractions,
+        agents: metrics.activeAgents,
+        processingTime: metrics.averageProcessingTime,
+        completion: metrics.goalCompletionRate * 100
+      }].slice(-20); // Keep last 20 data points
+      return newData;
+    });
+  }, [metrics]);
 
   return (
     <Card className="p-4 bg-gray-900/50 border-purple-500/30">
