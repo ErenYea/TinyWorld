@@ -409,36 +409,78 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
 
   public async exportAgentData(agentId: string) {
     try {
-      const agent = await db.select()
-        .from(agents)
-        .where(eq(agents.id, agentId))
-        .limit(1);
-
-      if (!agent[0]) {
-        throw new Error('Agent not found');
+      // Type safe validation
+      if (!agentId || typeof agentId !== 'string') {
+        throw new Error('Invalid agent ID provided');
       }
 
-      // Get agent interactions
-      const interactions = await db.select()
-        .from(agentInteractions)
-        .where(
-          or([
-            eq(agentInteractions.sourceAgentId, agentId),
-            eq(agentInteractions.targetAgentId, agentId)
-          ])
-        );
+      // Get agent data with type safety
+      const [agent] = await db.select({
+        id: agents.id,
+        name: agents.name,
+        description: agents.description,
+        goals: agents.goals,
+        status: agents.status,
+        metadata: agents.metadata,
+        memory: agents.memory,
+        createdAt: agents.createdAt
+      })
+      .from(agents)
+      .where(eq(agents.id, agentId))
+      .limit(1);
 
-      // Get agent logs
-      const logs = await db.select()
-        .from(simulationLogs)
-        .where(eq(simulationLogs.agentId, agentId));
+      if (!agent) {
+        throw new Error(`Agent with ID ${agentId} not found`);
+      }
+
+      // Get agent interactions with specified fields
+      const interactions = await db.select({
+        id: agentInteractions.id,
+        sourceAgentId: agentInteractions.sourceAgentId,
+        targetAgentId: agentInteractions.targetAgentId,
+        prompt: agentInteractions.prompt,
+        response: agentInteractions.response,
+        metadata: agentInteractions.metadata,
+        timestamp: agentInteractions.timestamp
+      })
+      .from(agentInteractions)
+      .where(
+        or([
+          eq(agentInteractions.sourceAgentId, agentId),
+          eq(agentInteractions.targetAgentId, agentId)
+        ])
+      )
+      .orderBy(agentInteractions.timestamp);
+
+      // Get agent logs with specified fields
+      const logs = await db.select({
+        id: simulationLogs.id,
+        type: simulationLogs.type,
+        message: simulationLogs.message,
+        timestamp: simulationLogs.timestamp
+      })
+      .from(simulationLogs)
+      .where(eq(simulationLogs.agentId, agentId))
+      .orderBy(simulationLogs.timestamp);
 
       const exportData = {
-        agent: agent[0],
+        agent,
         interactions,
         logs,
-        exportTime: new Date().toISOString()
+        stats: {
+          totalInteractions: interactions.length,
+          totalLogs: logs.length,
+          exportTime: new Date().toISOString()
+        }
       };
+
+      // Log successful export
+      await db.insert(simulationLogs)
+        .values({
+          agentId,
+          type: 'info',
+          message: `Successfully exported data for agent: ${agent.name}`
+        });
 
       // Broadcast export data
       this.broadcastToAll({
@@ -448,9 +490,23 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
 
       return exportData;
     } catch (error) {
+      // Enhanced error handling
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[SimulationManager] Error exporting agent data:', errorMessage);
-      throw error;
+      console.error('[SimulationManager] Error exporting agent data:', {
+        agentId,
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
+      // Log export error
+      await db.insert(simulationLogs)
+        .values({
+          agentId,
+          type: 'error',
+          message: `Failed to export agent data: ${errorMessage}`
+        });
+
+      throw new Error(`Failed to export agent data: ${errorMessage}`);
     }
   }
 

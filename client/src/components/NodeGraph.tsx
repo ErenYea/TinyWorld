@@ -10,7 +10,6 @@ import ReactFlow, {
   Handle,
   Position as FlowPosition,
   SelectionMode,
-  ConnectionMode,
 } from 'reactflow';
 import { ErrorBoundary } from './ErrorBoundary';
 import 'reactflow/dist/style.css';
@@ -28,7 +27,6 @@ interface NodeGraphProps {
   agents: Agent[] | null | undefined;
 }
 
-// Custom node component definition
 interface NodeData {
   label: string;
   task?: string;
@@ -43,7 +41,7 @@ const CustomNode = ({ data }: { data: NodeData }) => {
   
   return (
     <div 
-      className={`text-center group relative cursor-pointer transition-all duration-300 ${
+      className={`group relative cursor-pointer transition-all duration-300 ${
         expanded ? 'node-expanded' : ''
       }`}
       onClick={() => setExpanded(!expanded)}
@@ -82,7 +80,6 @@ const CustomNode = ({ data }: { data: NodeData }) => {
         </div>
       </div>
       
-      {/* Improved tooltip with animation and better visibility */}
       <div className="absolute opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-900/95 text-white p-4 rounded-lg shadow-xl z-50 w-72 -translate-x-1/2 left-1/2 mt-3 border border-purple-500/30">
         <div className="relative">
           <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-gray-900/95 border-t border-l border-purple-500/30"></div>
@@ -101,16 +98,13 @@ const CustomNode = ({ data }: { data: NodeData }) => {
   );
 };
 
-// Define types at the top level
 type Position = { x: number; y: number };
 type NodePositions = Map<string, Position>;
 
-// Initialize node types at the top level
 const nodeTypes = {
   default: CustomNode,
 } as const;
 
-// Initialize positions Map
 const initialPositions: NodePositions = new Map();
 
 const getNodeStyle = (status: string) => {
@@ -147,49 +141,21 @@ const getNodeStyle = (status: string) => {
 };
 
 function NodeGraphContent({ agents }: NodeGraphProps) {
-  if (!agents) {
-    return <div className="flex items-center justify-center h-full text-gray-400">No agents available</div>;
-  }
-  
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [positions] = useState(initialPositions);
+  const [positions] = useState<NodePositions>(new Map());
   
-  // Memoize node positions for performance
   const getNodePosition = useCallback((id: string) => {
     if (!positions.has(id)) {
       positions.set(id, {
-        x: 200 + Math.random() * 400,
-        y: 200 + Math.random() * 400,
+        x: Math.random() * 800,
+        y: Math.random() * 600,
       });
     }
     return positions.get(id) || { x: 0, y: 0 };
   }, [positions]);
 
-  // Memoize node updates to prevent unnecessary re-renders
-  const updateNodes = useCallback((currentAgents: Agent[]) => {
-    const newNodes = currentAgents.map((agent) => ({
-      id: agent.id,
-      type: 'default',
-      position: getNodePosition(agent.id),
-      data: {
-        label: agent.name,
-        task: agent.currentTask,
-        status: agent.status,
-        description: agent.description || 'No description available',
-      },
-      style: {
-        ...getNodeStyle(agent.status),
-        transition: 'all 0.3s ease-in-out',
-        opacity: 1,
-        transform: 'scale(1)',
-      },
-    }));
-    setNodes(newNodes);
-  }, [getNodePosition, setNodes]);
-
   useEffect(() => {
-    // Safely handle empty or undefined agents
     if (!Array.isArray(agents) || agents.length === 0) {
       setNodes([]);
       setEdges([]);
@@ -209,7 +175,6 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
       },
       style: {
         ...getNodeStyle(agent.status),
-        transition: 'all 0.3s ease-in-out',
         opacity: 1,
         transform: 'scale(1)',
       },
@@ -231,7 +196,6 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
           opacity: agent.status === 'running' ? 0.8 : 0.4,
           strokeDasharray: agent.status === 'running' ? '8 8' : '5 5',
           filter: agent.status === 'running' ? 'drop-shadow(0 0 8px rgba(168, 85, 247, 0.5))' : 'none',
-          transition: 'all 0.3s ease-in-out',
         },
         className: agent.status === 'running' ? 'edge-particle' : '',
         label: 'Interacting',
@@ -250,16 +214,15 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
 
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [agents, getNodePosition]);
+  }, [agents, getNodePosition, setNodes, setEdges]);
 
-  const onNodeDragStart = useCallback(() => {
-    // Disable node connections during drag
-    document.body.style.cursor = 'grabbing';
-  }, []);
-
-  const onNodeDragStop = useCallback(() => {
-    document.body.style.cursor = 'default';
-  }, []);
+  if (!agents) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-400">
+        No agents available
+      </div>
+    );
+  }
 
   return (
     <div className="h-full w-full">
@@ -268,8 +231,6 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onNodeDragStart={onNodeDragStart}
-        onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
         fitView
         draggable={true}
@@ -309,21 +270,8 @@ function NodeGraphContent({ agents }: NodeGraphProps) {
   );
 }
 
-// Memoized empty state component
-const EmptyState = React.memo(() => (
-  <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-    <div className="text-center">
-      <p className="mb-4">No agents deployed</p>
-      <p className="text-sm">Deploy agents using the panel on the left to start the simulation</p>
-    </div>
-  </div>
-));
-
-EmptyState.displayName = 'EmptyState';
-
-// Export the component directly with ErrorBoundary
-const NodeGraphComponent = React.memo(({ agents }: NodeGraphProps) => {
-  // Only log significant changes
+// Export the component with ErrorBoundary
+const NodeGraph = React.memo(({ agents }: NodeGraphProps) => {
   useEffect(() => {
     if (agents?.length) {
       console.log('[NodeGraph] Agents updated:', agents.length);
@@ -336,13 +284,18 @@ const NodeGraphComponent = React.memo(({ agents }: NodeGraphProps) => {
         {agents && agents.length > 0 ? (
           <NodeGraphContent agents={agents} />
         ) : (
-          <EmptyState />
+          <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+            <div className="text-center">
+              <p className="mb-4">No agents deployed</p>
+              <p className="text-sm">Deploy agents using the panel on the left to start the simulation</p>
+            </div>
+          </div>
         )}
       </div>
     </ErrorBoundary>
   );
 });
 
-NodeGraphComponent.displayName = 'NodeGraph';
+NodeGraph.displayName = 'NodeGraph';
 
-export const NodeGraph = NodeGraphComponent;
+export { NodeGraph };
