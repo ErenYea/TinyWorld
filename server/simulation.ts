@@ -3,6 +3,7 @@ import { agents, simulationLogs } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { WebSocket, WebSocketServer } from "ws";
 import type { Log } from "@db/schema";
+import { ClaudeService } from "./services/claude";
 
 interface SimulationMetrics {
   totalInteractions: number;
@@ -55,16 +56,41 @@ export class SimulationManager {
   }
 
   private async processAgentBehavior(agent: any, pattern: BehaviorPattern): Promise<string> {
-    const behaviors = {
-      ANALYZE: ['Scanning environment', 'Processing data', 'Evaluating outcomes'],
-      COLLABORATE: ['Seeking partners', 'Sharing information', 'Coordinating actions'],
-      OPTIMIZE: ['Identifying inefficiencies', 'Implementing improvements', 'Measuring results'],
-      LEARN: ['Gathering knowledge', 'Adapting strategies', 'Evolving capabilities']
-    };
+    const claudeService = ClaudeService.getInstance();
+    
+    try {
+      // Get current memory or initialize if none exists
+      const currentMemory = agent.memory || {};
+      
+      // Generate context based on behavior pattern
+      const context = `You are currently in ${pattern} mode. Consider your goals and previous interactions to determine your next action.`;
+      
+      const { response, updatedMemory } = await claudeService.generateResponse(
+        agent,
+        context,
+        currentMemory
+      );
 
-    const actions = behaviors[pattern];
-    const action = actions[Math.floor(Math.random() * actions.length)];
-    return `[${pattern}] ${action}`;
+      // Update agent memory in database
+      await db.update(agents)
+        .set({ memory: updatedMemory })
+        .where(eq(agents.id, agent.id));
+
+      return `[${pattern}] ${response}`;
+    } catch (error) {
+      console.error('[SimulationManager] Error processing agent behavior:', error);
+      // Fallback to basic behavior if Claude API fails
+      const behaviors = {
+        ANALYZE: ['Scanning environment', 'Processing data', 'Evaluating outcomes'],
+        COLLABORATE: ['Seeking partners', 'Sharing information', 'Coordinating actions'],
+        OPTIMIZE: ['Identifying inefficiencies', 'Implementing improvements', 'Measuring results'],
+        LEARN: ['Gathering knowledge', 'Adapting strategies', 'Evolving capabilities']
+      };
+
+      const actions = behaviors[pattern];
+      const action = actions[Math.floor(Math.random() * actions.length)];
+      return `[${pattern}] ${action} (Fallback)`;
+    }
   }
 
   private updateMetrics(activeAgents: number) {

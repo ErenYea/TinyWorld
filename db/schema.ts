@@ -9,6 +9,7 @@ export const agents = pgTable("agents", {
   goals: text("goals").notNull(),
   status: text("status").notNull().default('idle'),
   metadata: json("metadata").notNull().default({}),
+  memory: json("memory").notNull().default({}),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -17,6 +18,16 @@ export const simulationLogs = pgTable("simulation_logs", {
   agentId: uuid("agent_id").references(() => agents.id),
   type: text("type").notNull(),
   message: text("message").notNull(),
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
+export const agentInteractions = pgTable("agent_interactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sourceAgentId: uuid("source_agent_id").references(() => agents.id),
+  targetAgentId: uuid("target_agent_id").references(() => agents.id),
+  prompt: text("prompt").notNull(),
+  response: text("response").notNull(),
+  metadata: json("metadata").notNull().default({}),
   timestamp: timestamp("timestamp").defaultNow(),
 });
 
@@ -29,3 +40,8 @@ export const insertLogSchema = createInsertSchema(simulationLogs);
 export const selectLogSchema = createSelectSchema(simulationLogs);
 export type InsertLog = z.infer<typeof insertLogSchema>;
 export type Log = z.infer<typeof selectLogSchema>;
+
+export const insertInteractionSchema = createInsertSchema(agentInteractions);
+export const selectInteractionSchema = createSelectSchema(agentInteractions);
+export type InsertInteraction = z.infer<typeof insertInteractionSchema>;
+export type Interaction = z.infer<typeof selectInteractionSchema>;
