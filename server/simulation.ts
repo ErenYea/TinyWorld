@@ -4,7 +4,7 @@ import { eq, and, or } from "drizzle-orm";
 import { WebSocket, WebSocketServer } from "ws";
 import type { Log, Agent } from "@db/schema";
 import { ClaudeService } from "./services/claude";
-import type { Json } from "drizzle-orm/pg-core";
+import { json } from "drizzle-orm/pg-core";
 
 interface WorldContext {
   name: string;
@@ -95,9 +95,14 @@ export class SimulationManager {
   }
 
   private async processAgentBehavior(agent: Agent, pattern: BehaviorPattern): Promise<string> {
-    // Add immediate return if simulation is not running
+    // Immediate return if simulation is not running
     if (this.simulationStatus !== 'running') {
       console.log('[SimulationManager] Not processing behavior - simulation not running');
+      return '';
+    }
+
+    // Check again after getting lock to ensure status hasn't changed
+    if (this.simulationStatus !== 'running') {
       return '';
     }
     
@@ -123,7 +128,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
 
       // Update agent memory in database
       await db.update(agents)
-        .set({ memory: updatedMemory as Json })
+        .set({ memory: updatedMemory })
         .where(eq(agents.id, agent.id));
 
       // Update world state with agent's action
@@ -345,26 +350,24 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
   }
 
   public async stop() {
-    console.log('[SimulationManager] Stopping simulation');
-    
     // Set status first to prevent new interactions
     this.simulationStatus = 'paused';
     
     try {
-      // Clear simulation interval first
+      // Clear simulation interval immediately
       if (this.simulationInterval) {
         clearInterval(this.simulationInterval);
         this.simulationInterval = null;
       }
 
+      // Force clear all ongoing processes
+      this.agentStates.clear();
+      
       // Update all running agents to paused state
       await db.update(agents)
         .set({ status: 'paused' })
         .where(eq(agents.status, 'running'));
 
-      // Clear all ongoing interactions and state
-      this.agentStates.clear();
-      
       // Reset metrics for paused state
       this.metrics.activeAgents = 0;
       this.metrics.averageProcessingTime = 0;
@@ -376,6 +379,13 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       });
       
       this.broadcastMetrics();
+
+      // Clear any pending tasks
+      setTimeout(() => {
+        if (this.simulationStatus === 'paused') {
+          this.agentStates.clear();
+        }
+      }, 100);
 
       const log = await db.insert(simulationLogs)
         .values({
@@ -412,7 +422,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       await db.update(agents)
         .set({ 
           status: 'idle',
-          memory: {} as Json // Clear agent memory
+          memory: {} // Clear agent memory
         })
         .where(or(
           eq(agents.status, 'running'),
