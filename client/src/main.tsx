@@ -9,6 +9,7 @@ import SimulationDashboard from "./pages/SimulationDashboard";
 import { Login } from "./components/Login";
 import { SignUp } from "./components/SignUp";
 import { UserProvider } from "./context/UserContext";
+import { Header } from "./components/Header";
 
 function Router() {
   return (
@@ -25,6 +26,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <UserProvider>
+        <Header />
         <Router />
         <Toaster />
       </UserProvider>
