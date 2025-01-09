@@ -24,7 +24,7 @@ const agentSchema = z.object({
 type AgentFormData = z.infer<typeof agentSchema>;
 
 interface AgentDeploymentProps {
-  onDeploy: (agent: AgentFormData) => void;
+  onDeploy: (agent: AgentFormData & { email: string }) => void;
 }
 
 export function AgentDeployment({ onDeploy }: AgentDeploymentProps) {
@@ -36,16 +36,16 @@ export function AgentDeployment({ onDeploy }: AgentDeploymentProps) {
       goals: "",
     },
   });
-
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
   const onSubmit = (data: AgentFormData) => {
-    onDeploy(data);
+    onDeploy({ ...data, email: user?.email });
     form.reset();
   };
 
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4 text-purple-400">Deploy Agent</h2>
-      
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
@@ -55,7 +55,7 @@ export function AgentDeployment({ onDeploy }: AgentDeploymentProps) {
               <FormItem>
                 <FormLabel>Agent Name</FormLabel>
                 <FormControl>
-                  <Input 
+                  <Input
                     {...field}
                     className="bg-gray-800 border-purple-500/30"
                   />
@@ -72,7 +72,7 @@ export function AgentDeployment({ onDeploy }: AgentDeploymentProps) {
               <FormItem>
                 <FormLabel>Description</FormLabel>
                 <FormControl>
-                  <Textarea 
+                  <Textarea
                     {...field}
                     className="bg-gray-800 border-purple-500/30"
                     rows={3}
@@ -90,7 +90,7 @@ export function AgentDeployment({ onDeploy }: AgentDeploymentProps) {
               <FormItem>
                 <FormLabel>Goals</FormLabel>
                 <FormControl>
-                  <Textarea 
+                  <Textarea
                     {...field}
                     className="bg-gray-800 border-purple-500/30"
                     rows={3}
@@ -101,7 +101,7 @@ export function AgentDeployment({ onDeploy }: AgentDeploymentProps) {
             )}
           />
 
-          <Button 
+          <Button
             type="submit"
             className="w-full bg-purple-600 hover:bg-purple-700"
           >

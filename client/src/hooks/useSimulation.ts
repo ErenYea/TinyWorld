@@ -152,7 +152,7 @@ export function useSimulation() {
     }));
   };
 
-  const deployAgent = (agentData: { name: string; description: string; goals: string }) => {
+  const deployAgent = (agentData: { name: string; description: string; goals: string ,email:string}) => {
     if (!wsStatus.connected) {
       toast({
         title: "Connection Error",

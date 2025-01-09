@@ -9,10 +9,13 @@ import { NodeGraph } from "../components/NodeGraph";
 import { MatrixAnimation } from "../components/MatrixAnimation";
 import { MetricsPanel } from "../components/MetricsPanel";
 import { useSimulation } from "../hooks/useSimulation";
+import { useUser } from "@/context/UserContext";
+import { useLocation } from "wouter";
 
 export default function SimulationDashboard() {
-  const { 
-    agents, 
+  const [, setLocation] = useLocation();
+  const {
+    agents,
     simulationStatus,
     logs,
     metrics,
@@ -25,6 +28,13 @@ export default function SimulationDashboard() {
     exportAgentData,
     terminateAgent
   } = useSimulation();
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (!storedUser) {
+      setLocation("/login");
+    }
+  }, []);
+
 
   return (
     <div className="min-h-screen bg-black text-white p-4">
@@ -32,7 +42,7 @@ export default function SimulationDashboard() {
         <h1 className="text-3xl font-bold mb-6 text-purple-400">
           AI Mission Control
         </h1>
-        
+
         <div className="grid grid-cols-12 gap-6">
           {/* Left Column - Wider */}
           <div className="col-span-5 space-y-6">
@@ -45,7 +55,7 @@ export default function SimulationDashboard() {
             </Card>
 
             <Card className="p-6 bg-gray-900/50 border-purple-500/30">
-              <AgentManagement 
+              <AgentManagement
                 agents={agents || []}
                 onExportData={exportAgentData}
                 onTerminateAgent={terminateAgent}
@@ -58,7 +68,7 @@ export default function SimulationDashboard() {
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
                 <Card className="p-6 bg-gray-900/50 border-purple-500/30">
-                  <ControlPanel 
+                  <ControlPanel
                     status={simulationStatus}
                     wsStatus={wsStatus}
                     onStart={startSimulation}

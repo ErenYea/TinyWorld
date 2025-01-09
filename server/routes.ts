@@ -1,10 +1,11 @@
 import type { Express } from "express";
 import { Server } from "http";
 import { db } from "../db";
-import { agents, simulationLogs } from "@db/schema";
+import { agents, simulationLogs, users } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { WebSocketServer, WebSocket } from "ws";
 import { SimulationManager } from "./simulation";
+import bcrypt from 'bcrypt';
 
 // Extend WebSocket type to include our custom property
 interface CustomWebSocket extends WebSocket {
@@ -99,11 +100,17 @@ export function registerRoutes(app: Express, server: Server) {
   // Log when the server is ready
   console.log('[WebSocket] Server initialized successfully');
 
-  wss.on('connection', (wsRaw: WebSocket, req) => {
+  wss.on('connection', async (wsRaw: WebSocket, req) => {
     const ws = wsRaw as CustomWebSocket;
     const clientIp = req.socket.remoteAddress;
+    const urlParams = new URLSearchParams(req.url!.split('?')[1]);
+    const email = urlParams.get('email');
     const clientId = Math.random().toString(36).substr(2, 9);
-    
+    console.log(`Query received from client ${clientId}: ${email}`);
+    const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if(!user){
+      throw new Error('User not found');
+    }
     // Initialize connection state
     ws.isAlive = true;
     console.log(`WebSocket client connected - ID: ${clientId}, IP: ${clientIp}`);
@@ -157,17 +164,23 @@ export function registerRoutes(app: Express, server: Server) {
       switch (data.command) {
         case 'deploy':
           try {
+            const email = data.payload.email;
+            const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
+            if (!user) {  
+              throw new Error('User not found');
+            }
             const agent = await db.insert(agents).values({
               name: data.payload.name,
               description: data.payload.description,
               goals: data.payload.goals,
+              userId: user[0].id
             }).returning();
             
             await broadcastSystemLog('info', `Agent "${data.payload.name}" deployed successfully`);
             
             broadcastToAll(wss, {
               type: 'agents',
-              payload: await getAgents()
+              payload: await getAgents(user[0].id)
             });
           } catch (error: any) {
             console.error('[WebSocket] Failed to deploy agent:', error);
@@ -268,16 +281,84 @@ export function registerRoutes(app: Express, server: Server) {
     });
 
     // Send initial state
-    sendInitialState(ws);
+    sendInitialState(ws,user[0].id);
+  });
+
+  // Add login route
+  app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+    console.log('Login request received:', req.body);
+    try {
+      const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      console.log('User:', user);
+
+      if (user.length === 0) {
+        return res.status(401).json({ message: 'Invalid credentials' });
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, user[0].password);
+
+      if (!isPasswordValid) {
+        return res.status(401).json({ message: 'Invalid credentials' });
+      }
+
+      // Generate a JWT token (this is a placeholder, replace with actual JWT generation logic)
+      
+
+      return res.status(200).json({ 
+        message: 'Login successful', 
+        user: {
+          username: user[0].username,
+          email: user[0].email
+        } 
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+      return res.status(500).json({ message: 'Login failed', error: (error as Error).message });
+    }
+    
+  });
+
+  // Add signup route
+  app.post('/api/signup', async (req, res) => {
+    const { username, email, password } = req.body;
+
+    try {
+      // Check if email already exists
+      const existingUser = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      if (existingUser.length > 0) {
+        return res.status(200).json({ error: "signup_failed" ,message: 'Email already exists' });
+      }
+      // Replace this with your actual user creation logic
+      const newUser = await db.insert(users).values({
+        username,
+        email,
+        password: await bcrypt.hash(password, 10), // Note: In a real application, ensure to hash the password before storing it
+      }).returning();
+
+      return res.status(201).json({ 
+        message: 'Signup successful', 
+        user: {
+          username: newUser[0].username,
+          email: newUser[0].email
+        } 
+      });
+    } catch (error) {
+      if (error.code === '23505') { // Assuming PostgreSQL duplicate key error code
+        return res.status(409).json({ message: 'Signup failed',error:'Username or email already exists' });
+      }
+      console.error('Signup error:', error);
+      return res.status(500).json({ message: 'Signup failed', error: (error as Error).message });
+    }
   });
 }
 
-async function getAgents() {
-  return await db.select().from(agents);
+async function getAgents(userId: string) {
+  return await db.select().from(agents).where(eq(agents.userId, userId));
 }
 
-async function sendInitialState(ws: CustomWebSocket) {
-  const currentAgents = await getAgents();
+async function sendInitialState(ws: CustomWebSocket,userId:string) {
+  const currentAgents = await getAgents(userId);
   ws.send(JSON.stringify({
     type: 'agents',
     payload: currentAgents

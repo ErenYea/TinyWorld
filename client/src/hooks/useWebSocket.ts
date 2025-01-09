@@ -37,7 +37,8 @@ export function useWebSocket(url: string) {
   };
 
   useEffect(() => {
-    const connect = async () => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const connect = async (email:string) => {
       try {
         // Initial delay reduced for faster reconnection
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -45,7 +46,9 @@ export function useWebSocket(url: string) {
         // Use the provided URL directly instead of constructing it
         console.log('[WebSocket] Connecting to:', url);
         
-        const ws = new WebSocket(url);
+        const emailtosend = encodeURIComponent(email); // URL-encode the email
+        const urlWithParams = `${url}?email=${emailtosend}`;
+        const ws = new WebSocket(urlWithParams);
         socket.current = ws;
 
         // Setup heartbeat ping
@@ -99,7 +102,7 @@ export function useWebSocket(url: string) {
               });
             }
             
-            setTimeout(connect, delay);
+            setTimeout(() => connect(email), delay);
           } else {
             toast({
               title: "Connection Failed",
@@ -143,8 +146,9 @@ export function useWebSocket(url: string) {
         });
       }
     };
-
-    connect();
+    if(user.email){
+      connect(user.email);
+    }
 
     return () => {
       if (socket.current) {
