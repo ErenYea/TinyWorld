@@ -3,9 +3,14 @@ import react from "@vitejs/plugin-react";
 import themePlugin from "@replit/vite-plugin-shadcn-theme-json";
 import path from "path";
 import checker from "vite-plugin-checker";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal"
+import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const __dirname = import.meta.dirname;
+// Optionally, manually load .env variables if needed
+import dotenv from "dotenv";
+dotenv.config();
+
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
+
 export default defineConfig({
   plugins: [
     react(),
@@ -23,5 +28,9 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
+  },
+  // Example: Pass environment variables to the client
+  define: {
+    "process.env": process.env, // Optional: For non-VITE-prefixed variables
   },
 });
