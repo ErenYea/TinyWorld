@@ -5,6 +5,7 @@ import { agents, simulationLogs, users } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { WebSocketServer, WebSocket } from "ws";
 import { SimulationManager } from "./simulation";
+import { privy } from "./privyclient";
 import bcrypt from 'bcrypt';
 
 // Extend WebSocket type to include our custom property
@@ -104,10 +105,14 @@ export function registerRoutes(app: Express, server: Server) {
     const ws = wsRaw as CustomWebSocket;
     const clientIp = req.socket.remoteAddress;
     const urlParams = new URLSearchParams(req.url!.split('?')[1]);
-    const email = urlParams.get('email');
+    const userId = urlParams.get('id');
+    if(!userId){
+      throw new Error('User ID not found');
+    }
     const clientId = Math.random().toString(36).substr(2, 9);
-    console.log(`Query received from client ${clientId}: ${email}`);
-    const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    console.log(`Query received from client ${clientId}: ${userId}`);
+    const userIdDecoded = decodeURIComponent(userId);
+    const user = await privy.getUserById(userIdDecoded);
     if(!user){
       throw new Error('User not found');
     }
@@ -164,8 +169,8 @@ export function registerRoutes(app: Express, server: Server) {
       switch (data.command) {
         case 'deploy':
           try {
-            const email = data.payload.email;
-            const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
+            const userId = data.payload.userId;
+            const user = await privy.getUserById(userId);
             if (!user) {  
               throw new Error('User not found');
             }
@@ -173,14 +178,14 @@ export function registerRoutes(app: Express, server: Server) {
               name: data.payload.name,
               description: data.payload.description,
               goals: data.payload.goals,
-              userId: user[0].id
+              userId: user.id
             }).returning();
             
             await broadcastSystemLog('info', `Agent "${data.payload.name}" deployed successfully`);
             
             broadcastToAll(wss, {
               type: 'agents',
-              payload: await getAgents(user[0].id)
+              payload: await getAgents(user.id)
             });
           } catch (error: any) {
             console.error('[WebSocket] Failed to deploy agent:', error);
@@ -281,7 +286,7 @@ export function registerRoutes(app: Express, server: Server) {
     });
 
     // Send initial state
-    sendInitialState(ws,user[0].id);
+    sendInitialState(ws,user.id);
   });
 
   // Add login route

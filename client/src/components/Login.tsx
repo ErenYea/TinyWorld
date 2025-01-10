@@ -15,8 +15,9 @@ import { Card } from "./ui/card";
 import { useLogin } from '../hooks/use-login';
 import { useUser } from "@/context/UserContext";
 import { Link, useLocation } from "wouter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { usePrivy } from "@privy-io/react-auth";
 
 
 const loginSchema = z.object({
@@ -37,6 +38,7 @@ export function Login() {
             password: "",
         },
     });
+    const { user, login } = usePrivy();
 
     const loginMutation = useLogin();
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -65,6 +67,9 @@ export function Login() {
             },
         });
     };
+    useEffect(() => {
+        login();
+    }, []);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-black text-white p-4">

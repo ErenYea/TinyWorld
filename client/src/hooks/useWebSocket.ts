@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { usePrivy } from '@privy-io/react-auth';
 
 export interface WebSocketStatus {
   connected: boolean;
@@ -17,6 +18,7 @@ export function useWebSocket(url: string) {
   const maxReconnectAttempts = 3; // Reduced to 3 for Replit environment
   const heartbeatInterval = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
+  const { user } = usePrivy();
 
   // Function to construct WebSocket URL with proper protocol
   const getWebSocketUrl = (baseUrl: string) => {
@@ -37,8 +39,9 @@ export function useWebSocket(url: string) {
   };
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const connect = async (email:string) => {
+    
+    // const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const connect = async (userId:string) => {
       try {
         // Initial delay reduced for faster reconnection
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -46,8 +49,8 @@ export function useWebSocket(url: string) {
         // Use the provided URL directly instead of constructing it
         console.log('[WebSocket] Connecting to:', url);
         
-        const emailtosend = encodeURIComponent(email); // URL-encode the email
-        const urlWithParams = `${url}?email=${emailtosend}`;
+        const emailtosend = encodeURIComponent(userId); // URL-encode the email
+        const urlWithParams = `${url}?id=${emailtosend}`;
         const ws = new WebSocket(urlWithParams);
         socket.current = ws;
 
@@ -102,7 +105,7 @@ export function useWebSocket(url: string) {
               });
             }
             
-            setTimeout(() => connect(email), delay);
+            setTimeout(() => connect(userId), delay);
           } else {
             toast({
               title: "Connection Failed",
@@ -146,8 +149,11 @@ export function useWebSocket(url: string) {
         });
       }
     };
-    if(user.email){
-      connect(user.email);
+    if(user?.id){
+      connect(user.id);
+    }
+    if (socket.current && !user){
+      socket.current.close();
     }
 
     return () => {
@@ -155,7 +161,7 @@ export function useWebSocket(url: string) {
         socket.current.close();
       }
     };
-  }, [url, toast]);
+  }, [url, toast,user]);
 
   return {
     socket: socket.current,

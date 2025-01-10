@@ -11,7 +11,7 @@ export const agents = pgTable("agents", {
   metadata: json("metadata").notNull().default({}),
   memory: json("memory").notNull().default({}),
   createdAt: timestamp("created_at").defaultNow(),
-  userId: uuid("user_id").references(() => users.id),
+  userId: text("user_id"),
 });
 
 export const simulationLogs = pgTable("simulation_logs", {

@@ -10,13 +10,16 @@ import { Login } from "./components/Login";
 import { SignUp } from "./components/SignUp";
 import { UserProvider } from "./context/UserContext";
 import { Header } from "./components/Header";
+import PrivyProviders from "./components/PriacyLogin";
+
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={() => <SimulationDashboard />} />
-      <Route path="/login" component={() => <Login />} />
-      <Route path="/signup" component={() => <SignUp />} />
+      {/* <Route path={"/onboarding"} component={() => <PrivyLogin ></PrivyLogin>} /> */}
+      {/* <Route path="/login" component={() => <Login />} />
+      <Route path="/signup" component={() => <SignUp />} /> */}
       <Route>404 Page Not Found</Route>
     </Switch>
   );
@@ -25,11 +28,13 @@ function Router() {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <UserProvider>
-        <Header />
-        <Router />
-        <Toaster />
-      </UserProvider>
+      <PrivyProviders>
+        <UserProvider>
+          <Header />
+          <Router />
+          <Toaster />
+        </UserProvider>
+      </PrivyProviders>
     </QueryClientProvider>
   </StrictMode>,
 );

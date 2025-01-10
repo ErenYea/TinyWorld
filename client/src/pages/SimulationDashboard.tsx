@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { AgentDeployment } from "../components/AgentDeployment";
 import { WorldContextConfig } from "../components/WorldContextConfig";
@@ -11,6 +11,7 @@ import { MetricsPanel } from "../components/MetricsPanel";
 import { useSimulation } from "../hooks/useSimulation";
 import { useUser } from "@/context/UserContext";
 import { useLocation } from "wouter";
+import { usePrivy } from "@privy-io/react-auth";
 
 export default function SimulationDashboard() {
   const [, setLocation] = useLocation();
@@ -28,12 +29,30 @@ export default function SimulationDashboard() {
     exportAgentData,
     terminateAgent
   } = useSimulation();
-  useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (!storedUser) {
-      setLocation("/login");
+  const { user, login, getAccessToken } = usePrivy();
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const loginUser = async () => {
+    // const token = await getAccessToken();
+    if (!user) {
+      login();
     }
-  }, []);
+    // setAccessToken(token);
+  }
+  const getAccessTokens = async () => {
+    const token = await getAccessToken();
+    if (token) {
+      setAccessToken(token);
+    }
+  }
+  useEffect(() => {
+    loginUser();
+    getAccessTokens();
+    console.log(user);
+    // const storedUser = localStorage.getItem('user');
+    // if (!storedUser) {
+    //   setLocation("/login");
+    // }
+  }, [user]);
 
 
   return (

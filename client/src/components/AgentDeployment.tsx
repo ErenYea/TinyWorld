@@ -14,6 +14,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { usePrivy } from "@privy-io/react-auth";
 
 const agentSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -24,10 +25,11 @@ const agentSchema = z.object({
 type AgentFormData = z.infer<typeof agentSchema>;
 
 interface AgentDeploymentProps {
-  onDeploy: (agent: AgentFormData & { email: string }) => void;
+  onDeploy: (agent: AgentFormData & { userId: string }) => void;
 }
 
 export function AgentDeployment({ onDeploy }: AgentDeploymentProps) {
+  const { user } = usePrivy();
   const form = useForm<AgentFormData>({
     resolver: zodResolver(agentSchema),
     defaultValues: {
@@ -36,10 +38,13 @@ export function AgentDeployment({ onDeploy }: AgentDeploymentProps) {
       goals: "",
     },
   });
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  // const user = JSON.parse(localStorage.getItem('user') || '{}');
   const onSubmit = (data: AgentFormData) => {
-    onDeploy({ ...data, email: user?.email });
-    form.reset();
+    if (user) {
+
+      onDeploy({ ...data, userId: user?.id });
+      form.reset();
+    }
   };
 
   return (
