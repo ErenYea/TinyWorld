@@ -15,6 +15,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { usePrivy } from "@privy-io/react-auth";
+import { useUser } from "@/context/UserContext";
 
 const agentSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -30,6 +31,7 @@ interface AgentDeploymentProps {
 
 export function AgentDeployment({ onDeploy }: AgentDeploymentProps) {
   const { user } = usePrivy();
+  const { loader } = useUser();
   const form = useForm<AgentFormData>({
     resolver: zodResolver(agentSchema),
     defaultValues: {
@@ -109,6 +111,7 @@ export function AgentDeployment({ onDeploy }: AgentDeploymentProps) {
           <Button
             type="submit"
             className="w-full bg-purple-600 hover:bg-purple-700"
+            disabled={loader}
           >
             Deploy Agent
           </Button>

@@ -10,12 +10,16 @@ interface UserContextType {
     user: User | null;
     login: (user: User) => void;
     logout: () => void;
+    loader: boolean;
+    loadLoader: () => void;
+    stopLoader: () => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
+    const [loader, setLoader] = useState(false);
 
     const login = (user: User) => {
         console.log('Login successful:', user);
@@ -26,8 +30,16 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUser(null);
     };
 
+    const loadLoader = () => {
+        setLoader(true);
+    };
+
+    const stopLoader = () => {
+        setLoader(false);
+    };
+
     return (
-        <UserContext.Provider value={{ user, login, logout }}>
+        <UserContext.Provider value={{ user, login, logout, loader, loadLoader, stopLoader }}>
             {children}
         </UserContext.Provider>
     );

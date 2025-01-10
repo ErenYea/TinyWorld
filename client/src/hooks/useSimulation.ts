@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { useToast } from '@/hooks/use-toast';
+import { useUser } from '@/context/UserContext';
 
 interface Agent {
   id: string;
@@ -31,6 +32,7 @@ interface WebSocketMessage {
 }
 
 export function useSimulation() {
+  const { loadLoader, stopLoader } = useUser();
   const [agents, setAgents] = useState<Agent[] | null>(null);
   const [logs, setLogs] = useState<Log[]>([]);
   const [metrics, setMetrics] = useState<SimulationMetrics>({
@@ -63,6 +65,7 @@ export function useSimulation() {
         switch (data.type) {
           case 'agents':
             setAgents(Array.isArray(data.payload) ? data.payload : null);
+            stopLoader();
             break;
           case 'agentState':
             setAgents(prev => {
@@ -161,6 +164,7 @@ export function useSimulation() {
       });
       return;
     }
+    loadLoader();
     socket?.send(JSON.stringify({
       command: 'deploy',
       payload: agentData
