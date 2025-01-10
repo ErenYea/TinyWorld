@@ -22,7 +22,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [loader, setLoader] = useState(false);
 
     const login = (user: User) => {
-        console.log('Login successful:', user);
+        // console.log('Login successful:', user);
         setUser(user);
     };
 

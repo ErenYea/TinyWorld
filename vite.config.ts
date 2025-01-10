@@ -13,7 +13,7 @@ dotenv.config();
 // const __dirname = path.dirname(new URL(import.meta.url).pathname);
 // console.log("__dirname",__dirname);
 const __dirname = path.resolve();
-console.log("__dirname",__dirname);
+// console.log("__dirname",__dirname);
 
 export default defineConfig({
   plugins: [

@@ -28,11 +28,14 @@ interface AgentState {
   processingTime: number;
   connections: Set<string>;
 }
-
+interface CustomWebSocket extends WebSocket {
+  isAlive: boolean;
+  userId: string;
+}
 type BehaviorPattern = 'ANALYZE' | 'COLLABORATE' | 'OPTIMIZE' | 'LEARN';
 
 export class SimulationManager {
-  private wss: WebSocketServer;
+  private wss: WebSocket;
   private simulationInterval: NodeJS.Timeout | null = null;
   private agentStates: Map<string, AgentState> = new Map();
   private worldContext: WorldContext;
@@ -43,14 +46,16 @@ export class SimulationManager {
     goalCompletionRate: 0,
     averageProcessingTime: 0
   };
+  private userId: string;
 
-  constructor(wss: WebSocketServer, context: WorldContext = {
+  constructor(wss: WebSocket,userId:string, context: WorldContext = {
     name: "Default World",
     description: "A simulation environment for AI agents to interact and evolve",
     rules: ["Agents must collaborate to achieve goals", "Agents should respect resource constraints"],
     state: { timestamp: new Date().toISOString() }
   }) {
     this.wss = wss;
+    this.userId = userId;
     this.worldContext = context;
   }
 
@@ -64,19 +69,14 @@ export class SimulationManager {
     this.broadcastToAll({
       type: 'worldState',
       payload: this.worldContext
-    });
+    },);
   }
 
   private broadcastToAll(data: any) {
-    this.wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        try {
-          client.send(JSON.stringify(data));
-        } catch (error) {
-          console.error('Failed to broadcast to client:', error);
-        }
-      }
-    });
+    // console.log('Broadcast to all',this.wss.clients);
+    this.wss.send(JSON.stringify(data));
+    // console.log('Broadcast to all',data);
+
   }
 
   private determineInteraction(agent1Goals: string, agent2Goals: string): boolean {
@@ -111,15 +111,15 @@ export class SimulationManager {
     try {
       const currentMemory = agent.memory as Record<string, any>;
       const context = `
-World Context: ${this.worldContext.name}
-${this.worldContext.description}
-Rules: ${this.worldContext.rules.join('\n')}
+        World Context: ${this.worldContext.name}
+        ${this.worldContext.description}
+        Rules: ${this.worldContext.rules.join('\n')}
 
-Current State:
-${JSON.stringify(this.worldContext.state, null, 2)}
+        Current State:
+        ${JSON.stringify(this.worldContext.state, null, 2)}
 
-You are currently in ${pattern} mode. Consider your goals, the world context, and previous interactions to determine your next action.
-`;
+        You are currently in ${pattern} mode. Consider your goals, the world context, and previous interactions to determine your next action.
+        `;
       
       const { response, updatedMemory } = await claudeService.generateResponse(
         agent,
@@ -130,7 +130,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       // Update agent memory in database
       await db.update(agents)
         .set({ memory: updatedMemory })
-        .where(eq(agents.id, agent.id));
+        .where(and(eq(agents.id, agent.id),eq(agents.userId,this.userId)));
 
       // Update world state with agent's action
       this.updateWorldState({
@@ -169,7 +169,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
     try {
       await db.update(agents)
         .set({ status: newStatus })
-        .where(eq(agents.id, agentId));
+        .where(and(eq(agents.id, agentId),eq(agents.userId,this.userId)));
 
       const log = await db.insert(simulationLogs)
         .values({
@@ -206,7 +206,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       
       const idleAgents = await db.select()
         .from(agents)
-        .where(eq(agents.status, 'idle'));
+        .where(and(eq(agents.status, 'idle'),eq(agents.userId,this.userId)));
       
       for (const agent of idleAgents) {
         await this.updateAgentStatus(agent.id, 'running');
@@ -227,7 +227,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
 
           const runningAgents = await db.select()
             .from(agents)
-            .where(eq(agents.status, 'running'));
+            .where(and(eq(agents.status, 'running'),eq(agents.userId,this.userId)));
 
           console.log(`[SimulationManager] Processing ${runningAgents.length} running agents`);
 
@@ -245,11 +245,12 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
                   lastInteractionTime: Date.now(),
                   processingTime: 0,
                   connections: new Set()
+
                 });
               }
 
               const pattern = this.determineBehaviorPattern(agent.goals);
-              const currentBehavior = await this.processAgentBehavior(agent, pattern);
+              const currentBehavior = await this.processAgentBehavior(agent as Agent, pattern);
               
               for (const otherAgent of runningAgents) {
                 if (agent.id !== otherAgent.id && 
@@ -278,7 +279,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
 
               const currentAgent = await db.select()
                 .from(agents)
-                .where(eq(agents.id, agent.id))
+                .where(and(eq(agents.id, agent.id),eq(agents.userId,this.userId)))
                 .limit(1);
 
               if (!currentAgent[0] || currentAgent[0].status !== 'running') {
@@ -342,7 +343,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
     }
   }
 
-  private broadcastLog(log: Log) {
+  private broadcastLog(log: Log,) {
     console.log(`[SimulationManager] Broadcasting log: ${JSON.stringify(log)}`);
     
     const formattedLog = {
@@ -375,7 +376,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       // Update all running agents to paused state
       await db.update(agents)
         .set({ status: 'paused' })
-        .where(eq(agents.status, 'running'));
+        .where(and(eq(agents.status, 'running'),eq(agents.userId,this.userId)));
         
       // Reset active metrics
       this.metrics.activeAgents = 0;
@@ -424,9 +425,12 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
           status: 'idle',
           memory: {} // Clear agent memory
         })
-        .where(or(
-          eq(agents.status, 'running'),
-          eq(agents.status, 'paused')
+        .where(and(
+          or(
+            eq(agents.status, 'running'),
+            eq(agents.status, 'paused')
+          ),
+          eq(agents.userId,this.userId)
         ));
 
       // Reset metrics
@@ -468,7 +472,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
     try {
       const [agent] = await db.select()
         .from(agents)
-        .where(eq(agents.id, agentId))
+        .where(and(eq(agents.id, agentId),eq(agents.userId,this.userId)))
         .limit(1);
 
       if (!agent) {
@@ -489,7 +493,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
         .where(eq(simulationLogs.agentId, agentId));
 
       return {
-        agent,
+        agent: agent as Agent,
         interactions,
         logs
       };
@@ -504,8 +508,8 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
     try {
       // Update agent status to idle
       await db.update(agents)
-        .set({ status: 'idle', memory: {} as Json })
-        .where(eq(agents.id, agentId));
+        .set({ status: 'idle', memory: {} as JSON })
+        .where(and(eq(agents.id, agentId),eq(agents.userId,this.userId)));
 
       // Remove from active states
       this.agentStates.delete(agentId);
@@ -525,7 +529,7 @@ You are currently in ${pattern} mode. Consider your goals, the world context, an
       this.updateMetrics(this.agentStates.size);
 
       // Broadcast updated agent list
-      const updatedAgents = await db.select().from(agents);
+      const updatedAgents = await db.select().from(agents).where(eq(agents.userId,this.userId));
       this.broadcastToAll({
         type: 'agents',
         payload: updatedAgents

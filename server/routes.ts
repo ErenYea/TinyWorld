@@ -2,15 +2,16 @@ import type { Express } from "express";
 import { Server } from "http";
 import { db } from "../db";
 import { agents, simulationLogs, users } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { WebSocketServer, WebSocket } from "ws";
 import { SimulationManager } from "./simulation";
 import { privy } from "./privyclient";
-import bcrypt from 'bcrypt';
 
 // Extend WebSocket type to include our custom property
 interface CustomWebSocket extends WebSocket {
   isAlive: boolean;
+  userId: string;
+  simulationManager: SimulationManager;
 }
 
 export function registerRoutes(app: Express, server: Server) {
@@ -78,9 +79,9 @@ export function registerRoutes(app: Express, server: Server) {
 
   // Initialize simulation manager after WSS is ready
   // Initialize simulation manager and create function for broadcasting logs
-  const simulationManager = new SimulationManager(wss);
+  // const simulationManager = new SimulationManager(wss);
 
-  async function broadcastSystemLog(type: 'info' | 'warning' | 'error', message: string) {
+  async function broadcastSystemLog(type: 'info' | 'warning' | 'error', message: string,ws:WebSocket) {
     const log = await db.insert(simulationLogs)
       .values({
         type,
@@ -89,7 +90,7 @@ export function registerRoutes(app: Express, server: Server) {
       .returning();
     
     console.log(`[WebSocket] Broadcasting system log: ${message}`);
-    broadcastToAll(wss, {
+    broadcastToAll(ws, {
       type: 'log',
       payload: {
         ...log[0],
@@ -118,8 +119,9 @@ export function registerRoutes(app: Express, server: Server) {
     }
     // Initialize connection state
     ws.isAlive = true;
+    ws.simulationManager = new SimulationManager(ws,user.id);
     console.log(`WebSocket client connected - ID: ${clientId}, IP: ${clientIp}`);
-    
+    ws.userId = userIdDecoded;
     // Setup heartbeat
     ws.on('pong', () => {
       ws.isAlive = true;
@@ -181,15 +183,15 @@ export function registerRoutes(app: Express, server: Server) {
               userId: user.id
             }).returning();
             
-            await broadcastSystemLog('info', `Agent "${data.payload.name}" deployed successfully`);
+            await broadcastSystemLog('info', `Agent "${data.payload.name}" deployed successfully`,ws);
             
-            broadcastToAll(wss, {
+            broadcastToAll(ws, {
               type: 'agents',
               payload: await getAgents(user.id)
             });
           } catch (error: any) {
             console.error('[WebSocket] Failed to deploy agent:', error);
-            await broadcastSystemLog('error', `Failed to deploy agent: ${error?.message || 'Unknown error'}`);
+            await broadcastSystemLog('error', `Failed to deploy agent: ${error?.message || 'Unknown error'}`,ws);
           }
           break;
 
@@ -198,82 +200,82 @@ export function registerRoutes(app: Express, server: Server) {
             // Only update idle agents to running state
             await db.update(agents)
               .set({ status: 'running' })
-              .where(eq(agents.status, 'idle'));
+              .where(and(eq(agents.status, 'idle'),eq(agents.userId,user.id)));
 
             // Start simulation loop
-            await simulationManager.startSimulationLoop();
+            await ws.simulationManager.startSimulationLoop();
             
-            broadcastToAll(wss, {
+            broadcastToAll(ws, {
               type: 'status',
               payload: 'running'
             });
 
-            await broadcastSystemLog('info', 'Simulation started');
+            await broadcastSystemLog('info', 'Simulation started',ws);
           } catch (error: any) {
             console.error('[WebSocket] Failed to start simulation:', error);
-            await broadcastSystemLog('error', `Failed to start simulation: ${error?.message || 'Unknown error'}`);
+            await broadcastSystemLog('error', `Failed to start simulation: ${error?.message || 'Unknown error'}`,ws);
           }
           break;
 
         case 'pause':
-          await simulationManager.stop();
+          await ws.simulationManager.stop();
           break;
 
         case 'reset':
-          await simulationManager.reset();
+          await ws.simulationManager.reset();
           break;
 
         case 'exportData':
           try {
             const { agentId } = data.payload;
-            await simulationManager.exportAgentData(agentId);
-            await broadcastSystemLog('info', `Agent data exported for agent ID: ${agentId}`);
+            await ws.simulationManager.exportAgentData(agentId);
+            await broadcastSystemLog('info', `Agent data exported for agent ID: ${agentId}`,ws);
           } catch (error: any) {
             console.error('[WebSocket] Failed to export agent data:', error);
-            await broadcastSystemLog('error', `Failed to export agent data: ${error?.message || 'Unknown error'}`);
+            await broadcastSystemLog('error', `Failed to export agent data: ${error?.message || 'Unknown error'}`,ws);
           }
           break;
 
         case 'terminate':
           try {
             const { agentId } = data.payload;
-            await simulationManager.terminateAgent(agentId);
-            await broadcastSystemLog('info', `Agent terminated: ${agentId}`);
+            await ws.simulationManager.terminateAgent(agentId);
+            await broadcastSystemLog('info', `Agent terminated: ${agentId}`,ws);
           } catch (error: any) {
             console.error('[WebSocket] Failed to terminate agent:', error);
-            await broadcastSystemLog('error', `Failed to terminate agent: ${error?.message || 'Unknown error'}`);
+            await broadcastSystemLog('error', `Failed to terminate agent: ${error?.message || 'Unknown error'}`,ws);
           }
           break;
 
-        case 'analyzeDiscussion':
-          try {
-            const { query } = data.payload;
-            const analysis = await simulationManager.analyzeDiscussion(query);
+        // case 'analyzeDiscussion':
+        //   try {
+        //     const { query } = data.payload;
+        //     const analysis = await ws.simulationManager.analyzeDiscussion(query);
             
-            broadcastToAll(wss, {
-              type: 'analysis',
-              payload: analysis
-            });
-          } catch (error) {
-            console.error('[WebSocket] Failed to analyze discussion:', error);
-            await broadcastSystemLog('error', `Failed to analyze discussion: ${error?.message || 'Unknown error'}`);
-          }
-          break;
+        //     broadcastToAll(ws, {
+        //       type: 'analysis',
+        //       payload: analysis
+        //     });
+        //   } catch (error) {
+        //     console.error('[WebSocket] Failed to analyze discussion:', error);
+        //     await broadcastSystemLog('error', `Failed to analyze discussion: ${(error as Error)?.message || 'Unknown error'}`,ws);
+        //   }
+        //   break;
 
         case 'updateWorldContext':
           try {
             const worldContext = data.payload;
-            simulationManager.updateWorldState(worldContext);
+            ws.simulationManager.updateWorldState(worldContext);
             
-            await broadcastSystemLog('info', `World context updated: ${worldContext.name}`);
+            await broadcastSystemLog('info', `World context updated: ${worldContext.name}`,ws);
             
-            broadcastToAll(wss, {
+            broadcastToAll(ws, {
               type: 'worldContext',
               payload: worldContext
             });
           } catch (error: any) {
             console.error('[WebSocket] Failed to update world context:', error);
-            await broadcastSystemLog('error', `Failed to update world context: ${error?.message || 'Unknown error'}`);
+            await broadcastSystemLog('error', `Failed to update world context: ${error?.message || 'Unknown error'}`,ws);
           }
           break;
       }
@@ -289,73 +291,7 @@ export function registerRoutes(app: Express, server: Server) {
     sendInitialState(ws,user.id);
   });
 
-  // Add login route
-  app.post('/api/login', async (req, res) => {
-    const { email, password } = req.body;
-    console.log('Login request received:', req.body);
-    try {
-      const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
-      console.log('User:', user);
 
-      if (user.length === 0) {
-        return res.status(401).json({ message: 'Invalid credentials' });
-      }
-
-      const isPasswordValid = await bcrypt.compare(password, user[0].password);
-
-      if (!isPasswordValid) {
-        return res.status(401).json({ message: 'Invalid credentials' });
-      }
-
-      // Generate a JWT token (this is a placeholder, replace with actual JWT generation logic)
-      
-
-      return res.status(200).json({ 
-        message: 'Login successful', 
-        user: {
-          username: user[0].username,
-          email: user[0].email
-        } 
-      });
-    } catch (error) {
-      console.error('Login error:', error);
-      return res.status(500).json({ message: 'Login failed', error: (error as Error).message });
-    }
-    
-  });
-
-  // Add signup route
-  app.post('/api/signup', async (req, res) => {
-    const { username, email, password } = req.body;
-
-    try {
-      // Check if email already exists
-      const existingUser = await db.select().from(users).where(eq(users.email, email)).limit(1);
-      if (existingUser.length > 0) {
-        return res.status(200).json({ error: "signup_failed" ,message: 'Email already exists' });
-      }
-      // Replace this with your actual user creation logic
-      const newUser = await db.insert(users).values({
-        username,
-        email,
-        password: await bcrypt.hash(password, 10), // Note: In a real application, ensure to hash the password before storing it
-      }).returning();
-
-      return res.status(201).json({ 
-        message: 'Signup successful', 
-        user: {
-          username: newUser[0].username,
-          email: newUser[0].email
-        } 
-      });
-    } catch (error) {
-      if (error.code === '23505') { // Assuming PostgreSQL duplicate key error code
-        return res.status(409).json({ message: 'Signup failed',error:'Username or email already exists' });
-      }
-      console.error('Signup error:', error);
-      return res.status(500).json({ message: 'Signup failed', error: (error as Error).message });
-    }
-  });
 }
 
 async function getAgents(userId: string) {
@@ -370,15 +306,7 @@ async function sendInitialState(ws: CustomWebSocket,userId:string) {
   }));
 }
 
-function broadcastToAll(wss: WebSocketServer, data: any) {
-  wss.clients.forEach((client) => {
-    const customClient = client as CustomWebSocket;
-    if (customClient.readyState === WebSocket.OPEN) {
-      try {
-        customClient.send(JSON.stringify(data));
-      } catch (error) {
-        console.error('Failed to broadcast to client:', error);
-      }
-    }
-  });
+function broadcastToAll(wss: WebSocket, data: any) {
+  wss.send(JSON.stringify(data));
 }
+

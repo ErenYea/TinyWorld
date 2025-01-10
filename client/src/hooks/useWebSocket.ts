@@ -54,6 +54,7 @@ export function useWebSocket(url: string) {
         const emailtosend = encodeURIComponent(userId); // URL-encode the email
         const urlWithParams = `${url}?id=${emailtosend}`;
         const ws = new WebSocket(urlWithParams);
+
         socket.current = ws;
 
         // Setup heartbeat ping
@@ -71,6 +72,8 @@ export function useWebSocket(url: string) {
             reconnectAttempt: 0,
             lastError: undefined 
           });
+          
+          
           reconnectAttempts.current = 0;
           setupHeartbeat();
           toast({

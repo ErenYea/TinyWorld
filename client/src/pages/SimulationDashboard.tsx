@@ -47,7 +47,7 @@ export default function SimulationDashboard() {
   useEffect(() => {
     loginUser();
     getAccessTokens();
-    console.log(user);
+    // console.log(user);
     // const storedUser = localStorage.getItem('user');
     // if (!storedUser) {
     //   setLocation("/login");

@@ -25,15 +25,15 @@ export class ClaudeService {
   ): Promise<{ response: string; updatedMemory: Record<string, any> }> {
     try {
       const systemPrompt = `You are an AI agent named ${agent.name} with the following description: ${agent.description}
-Your goals are: ${agent.goals}
+      Your goals are: ${agent.goals}
 
-Previous context and memory:
-${JSON.stringify(memory, null, 2)}
+      Previous context and memory:
+      ${JSON.stringify(memory, null, 2)}
 
-Current context:
-${context}
+      Current context:
+      ${context}
 
-Respond in character as the AI agent, considering your goals and previous context. Your response should be focused and concise.`;
+      Respond in character as the AI agent, considering your goals and previous context. Your response should be focused and concise.`;
 
       const response = await this.client.messages.create({
         model: 'claude-3-opus-20240229',
