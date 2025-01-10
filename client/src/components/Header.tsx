@@ -14,7 +14,7 @@ export const Header = () => {
     }
 
     return (
-        <header className="flex items-center justify-between p-4 bg-gray-800 text-white sticky inset-0">
+        <header className="flex items-center justify-between p-4 bg-gray-800 text-white sticky inset-0 z-50">
             <div className="flex items-center">
                 {/* Sample Logo */}
                 <img src="/path/to/sample-logo.png" alt="Logo" className="h-8 w-8 mr-2" />
