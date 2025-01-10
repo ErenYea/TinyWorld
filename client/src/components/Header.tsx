@@ -9,7 +9,7 @@ export const Header = () => {
         setLocation('/login');
     }
     return (
-        <header className="flex items-center justify-between p-4 bg-gray-800 text-white">
+        <header className="flex items-center justify-between p-4 bg-gray-800 text-white sticky inset-0">
             <div className="flex items-center">
                 {/* Sample Logo */}
                 <img src="/path/to/sample-logo.png" alt="Logo" className="h-8 w-8 mr-2" />

@@ -52,7 +52,7 @@ export function SignUp() {
     const onSubmit = (data: SignUpFormData) => {
         setErrorMessage(null); // Reset error message on new submit
         signUpMutation.mutate(data, {
-            onSuccess: (response) => {
+            onSuccess: (response: { message: string; user?: any; error?: string }) => {
                 if (response.error === "signup_failed") {
                     toast({
                         title: "Signup Error",
@@ -66,17 +66,24 @@ export function SignUp() {
                         description: "You are now signed up. Please login to continue.",
                         variant: "default",
                     });
-                    localStorage.setItem('user', JSON.stringify(response.user));
-                    setLocation("/");
+                    if (response.user) {
+                        localStorage.setItem('user', JSON.stringify(response.user));
+                        setLocation("/");
+                    } else {
+                        toast({
+                            title: "Signup Error",
+                            description: "Signup failed. User data is missing.",
+                            variant: "destructive",
+                        });
+                    }
                 }
             },
-            onError: (error) => {
+            onError: (error: any) => {
                 toast({
                     title: "Signup Error",
                     description: "Signup failed. Please check your details and try again.",
                     variant: "destructive",
                 });
-                console.error('Signup error:', error);
                 if (error.response && error.response.data && error.response.data.message) {
                     setErrorMessage(error.response.data.message);
                 } else {
