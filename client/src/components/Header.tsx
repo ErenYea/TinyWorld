@@ -23,21 +23,34 @@ export const Header = () => {
             <div className="flex items-center gap-2">
                 {user?.email || user?.google ? (
                     <>
-                        <span>Welcome, {user?.email?.address || user?.google?.name}</span>
+                        {/* <span>Welcome, {user?.email?.address || user?.google?.name}</span> */}
+                        {user?.wallet && (
+                            <span className='border border-white px-4 py-1 rounded-lg'>
+                                {user.wallet.address.slice(0, 6)}......{user.wallet.address.slice(-6)}
+                            </span>
+                        )}
                         <button
                             onClick={onLogout}
-                            className="text-purple-400 hover:underline"
+                            className="text-purple-400 hover:underline flex items-center"
                         >
-                            Log out
+                            <span>Log out</span>
                         </button>
                     </>
                 ) : (
-                    <button
-                        onClick={() => login()}
-                        className="text-white bg-purple-500 px-2 py-1 rounded-lg"
-                    >
-                        {'Log in'}
-                    </button>
+                    <>
+                        {user?.wallet && (
+                            <span className='border border-white px-4 py-1 rounded-lg'>
+                                {user.wallet.address.slice(0, 6)}......{user.wallet.address.slice(-6)}
+                            </span>
+                        )}
+                        <button
+                            onClick={() => login()}
+                            className="text-white bg-purple-500 px-2 py-1 rounded-lg"
+                        >
+                            {'Log in'}
+                        </button>
+                
+                    </>
                 )}
             </div>
         </header>
