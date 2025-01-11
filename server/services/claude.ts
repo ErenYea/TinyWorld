@@ -7,7 +7,7 @@ export class ClaudeService {
 
   private constructor() {
     this.client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY!
+      apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY
     });
   }
 
