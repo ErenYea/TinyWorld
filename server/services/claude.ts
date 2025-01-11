@@ -1,13 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { Agent } from '@db/schema';
-
+import dotenv from 'dotenv';
+dotenv.config();
 export class ClaudeService {
   private client: Anthropic;
   private static instance: ClaudeService;
 
   private constructor() {
+    
     this.client = new Anthropic({
-      apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY
+      apiKey:process.env.VITE_ANTHROPIC_API_KEY!
     });
   }
 

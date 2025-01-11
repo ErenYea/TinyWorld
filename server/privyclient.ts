@@ -1,2 +1,2 @@
 import { PrivyClient } from '@privy-io/server-auth';
-export const privy = new PrivyClient('cm5qvqz1h09q722xguscxbzl1', '5JuVXxP6xb29SDgGJCRVQCe29974mLkDjkV832Yvtwxx3UGKue9kJWjkZLY8D4uzDMN7wmQBwepDzBnMNwwfqRax');
+export const privy = new PrivyClient(process.env.VITE_PRIVY_CLIENT_ID!, process.env.VITE_PRIVY_CLIENT_SECRET!);
