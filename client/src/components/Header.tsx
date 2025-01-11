@@ -21,7 +21,7 @@ export const Header = () => {
                 {/* <span className="text-lg font-bold">MyApp</span> */}
             </div>
             <div className="flex items-center gap-2">
-                {user?.email || user?.google ? (
+                {user?.email || user?.google || user?.wallet ? (
                     <>
                         {/* <span>Welcome, {user?.email?.address || user?.google?.name}</span> */}
                         {user?.wallet && (
@@ -37,20 +37,12 @@ export const Header = () => {
                         </button>
                     </>
                 ) : (
-                    <>
-                        {user?.wallet && (
-                            <span className='border border-white px-4 py-1 rounded-lg'>
-                                {user.wallet.address.slice(0, 6)}......{user.wallet.address.slice(-6)}
-                            </span>
-                        )}
-                        <button
-                            onClick={() => login()}
-                            className="text-white bg-purple-500 px-2 py-1 rounded-lg"
-                        >
-                            {'Log in'}
-                        </button>
-                
-                    </>
+                    <button
+                        onClick={() => login()}
+                        className="text-white bg-purple-500 px-2 py-1 rounded-lg"
+                    >
+                        {'Log in'}
+                    </button>
                 )}
             </div>
         </header>
