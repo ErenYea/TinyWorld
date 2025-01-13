@@ -17,8 +17,8 @@ export const Header = () => {
         <header className="flex items-center justify-between p-4 bg-gray-800 text-white sticky inset-0 z-50">
             <div className="flex items-center">
                 {/* Sample Logo */}
-                {/* <img src="/logo22.png" alt="Logo" className="h-[30px] w-[100px] mr-2" /> */}
-                <span className="text-lg font-bold">Sprout</span>
+                <img src="/logo22.png" alt="Logo" className="h-[30px] w-[100px] mr-2" />
+                {/* <span className="text-lg font-bold">Sprout</span> */}
             </div>
             <div className="flex items-center gap-2">
                 {user?.email || user?.google || user?.wallet ? (
